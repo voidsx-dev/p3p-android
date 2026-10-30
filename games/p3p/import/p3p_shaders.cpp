@@ -392,6 +392,87 @@ long extract_shaders(const nxi::GameImage& game, const std::string& out_dir,
         make_dir(out_dir);
         const nxi::GameImage::Entry* cpk = game.find("CPK/ALL_USEU.CPK");
         if (!cpk) {
+            {
+                // Discovery 2: the engine's markers in main, and what is inside the big CPKs.
+                std::string msg;
+                auto mi2 = game.exefs().find("main");
+                if (mi2 != game.exefs().end()) {
+                    std::vector<uint8_t> flat2;
+                    std::string e3;
+                    if (nxi::nso_to_flat_image(mi2->second, flat2, e3)) {
+                        msg += "main markers:";
+                        for (const char* k : {"UnityPlayer", "il2cpp", "UnityEngine", "glslcCompile", "glslcInitialize",
+                                              "nvnDeviceInitialize", "HNSH", "GFD", "CRIWARE", "criFs", "SDL_"}) {
+                            const size_t n = std::strlen(k);
+                            long c = 0;
+                            auto it = flat2.begin();
+                            while (c < 1000) {
+                                it = std::search(it, flat2.end(), k, k + n);
+                                if (it == flat2.end()) break;
+                                c++;
+                                it += ptrdiff_t(n);
+                            }
+                            msg += std::string(" ") + k + "=" + std::to_string(c);
+                        }
+                        msg += ". ";
+                    }
+                }
+                for (const char* name : {"data/umd0.cpk", "data/umd1.cpk"}) {
+                    const nxi::GameImage::Entry* u = game.find(name);
+                    if (!u) continue;
+                    try {
+                        std::vector<CpkFile> fs = cpk_files(game, *u);
+                        std::map<std::string, std::pair<long, uint64_t>> ext;
+                        std::map<std::string, long> dirs;
+                        std::string listing, interesting;
+                        for (const CpkFile& f : fs) {
+                            listing += f.path + "\t" + std::to_string((unsigned long long)f.size) + "\n";
+                            const size_t dot = f.path.rfind('.'), slash = f.path.rfind('/');
+                            std::string e = (dot != std::string::npos && (slash == std::string::npos || dot > slash))
+                                                ? f.path.substr(dot) : "(none)";
+                            ext[e].first++;
+                            ext[e].second += f.size;
+                            const size_t s1 = f.path.find('/');
+                            dirs[s1 == std::string::npos ? std::string("(root)") : f.path.substr(0, s1)]++;
+                            std::string low = f.path;
+                            for (char& ch : low) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+                            if (interesting.size() < 400 &&
+                                (low.find("shader") != std::string::npos || low.find("gsc") != std::string::npos ||
+                                 low.find("gfd") != std::string::npos || low.find("nvn") != std::string::npos ||
+                                 low.find("glsl") != std::string::npos))
+                                interesting += " " + f.path;
+                        }
+                        std::vector<std::pair<std::string, std::pair<long, uint64_t>>> ev(ext.begin(), ext.end());
+                        std::sort(ev.begin(), ev.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
+                        std::vector<std::pair<std::string, long>> dv(dirs.begin(), dirs.end());
+                        std::sort(dv.begin(), dv.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+                        msg += std::string(name) + ": " + std::to_string(fs.size()) + " files. Types:";
+                        for (size_t i = 0; i < ev.size() && i < 12; i++)
+                            msg += " " + ev[i].first + "=" + std::to_string(ev[i].second.first) + "/" +
+                                   std::to_string(ev[i].second.second >> 20) + "MB";
+                        msg += ". Dirs:";
+                        for (size_t i = 0; i < dv.size() && i < 12; i++)
+                            msg += " " + dv[i].first + "=" + std::to_string(dv[i].second);
+                        if (!interesting.empty()) msg += ". Shader-like:" + interesting;
+                        msg += ". ";
+                        std::string base = std::string(name);
+                        for (char& ch : base)
+                            if (ch == '/') ch = '_';
+                        for (const char* dir : {"/storage/emulated/0/Persona 3 Portable", "/sdcard/Persona 3 Portable"}) {
+                            try {
+                                make_dir(dir);
+                                write_file(std::string(dir) + "/" + base + "_list.txt",
+                                           reinterpret_cast<const uint8_t*>(listing.data()), listing.size());
+                                break;
+                            } catch (...) {
+                            }
+                        }
+                    } catch (const std::exception& ex) {
+                        msg += std::string(name) + ": cannot read its table (" + ex.what() + "). ";
+                    }
+                }
+                throw Fail(msg);
+            }
             // Discovery: list the RomFS, save the list, and say what was found in the error.
             std::vector<std::pair<std::string, uint64_t>> files;
             std::vector<std::string> stack{""};
