@@ -24,7 +24,7 @@
 namespace {
 
 constexpr uint64_t kTitle = 0x0100DCD01525A000ull;
-constexpr const char* kBuildId = "708BCACA873EA32B";  // 1.0.0, the base game (games/p3p/game.cpp)
+constexpr const char* kBuildId = "663052C2C7E8C357";  // 1.0.0, the base game (games/p3p/game.cpp)
 
 std::atomic<int> g_phase{0}, g_done{0}, g_total{0};
 std::mutex g_error_lock;
