@@ -1,0 +1,84 @@
+name: build-apk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the Ryubing source
+        run: |
+          mkdir -p private/third_party/ryubing
+          curl -L -o private/third_party/ryubing.tar.gz https://codeberg.org/Software_arch/Ryubing/archive/a82350bb77.tar.gz
+          tar -xzf private/third_party/ryubing.tar.gz -C private/third_party/ryubing --strip-components=1
+
+      - name: Build libspirvharness.so
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src mcr.microsoft.com/dotnet/sdk:10.0 \
+            sh games/p5r/tools/build_harness_android.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libspirvharness
+          path: private/build/spirv_harness_android/libspirvharness.so
+          if-no-files-found: error
+
+  apk:
+    needs: harness
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: libspirvharness
+          path: private/build/spirv_harness_android
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: cmake and ninja
+        run: pip install cmake ninja
+
+      - name: Vulkan headers
+        run: git clone --depth 1 --branch v1.4.357 https://github.com/KhronosGroup/Vulkan-Headers private/third_party/Vulkan-Headers-1.4.357
+
+      - name: Android SDK pieces
+        shell: pwsh
+        run: |
+          $sdkm = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
+          if (-not (Test-Path $sdkm)) { throw "sdkmanager not found at $sdkm" }
+          ("y`n" * 20) | & $sdkm --licenses | Out-Null
+          & $sdkm "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358"
+          if ($LASTEXITCODE) { throw "sdkmanager failed" }
+
+      - name: Debug keystore
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:USERPROFILE\.android" | Out-Null
+          keytool -genkeypair -keystore "$env:USERPROFILE\.android\debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -validity 10000
+          if ($LASTEXITCODE) { throw "keytool failed" }
+
+      - name: Build the APK
+        shell: powershell
+        run: |
+          $env:VULKAN_SDK = "$PWD\private\third_party\Vulkan-Headers-1.4.357"
+          powershell -NoProfile -ExecutionPolicy Bypass -File android\build_apk.ps1 -Game p3p -Nce
+          if ($LASTEXITCODE) { throw "build_apk.ps1 failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p3p-apk
+          path: private/p3p/apk_nce/p3p.apk
+          if-no-files-found: error
