@@ -393,6 +393,46 @@ long extract_shaders(const nxi::GameImage& game, const std::string& out_dir,
         const nxi::GameImage::Entry* cpk = game.find("CPK/ALL_USEU.CPK");
         if (!cpk) {
             {
+                // P3P: its shaders are the few files in the shader/ folder of data/umd0.cpk.
+                const nxi::GameImage::Entry* u0 = game.find("data/umd0.cpk");
+                if (!u0) throw Fail("no data/umd0.cpk in the game file");
+                std::vector<CpkFile> sh;
+                for (const CpkFile& f : cpk_files(game, *u0)) {
+                    std::string low = f.path;
+                    for (char& ch : low) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+                    if (low.rfind("shader/", 0) == 0) sh.push_back(f);
+                }
+                if (sh.empty()) throw Fail("no shader/ files in data/umd0.cpk");
+                std::set<std::string> seen2;
+                long total2 = 0;
+                std::string diag = "P3P shader files (no NVN blocks found):";
+                for (size_t i = 0; i < sh.size(); i++) {
+                    if (progress) progress(int(i), int(sh.size()));
+                    const CpkFile& f = sh[i];
+                    std::vector<uint8_t> raw(size_t(f.size));
+                    if (game.read(*u0, f.offset, raw.data(), raw.size()) != raw.size()) throw Fail("cannot read " + f.path);
+                    std::vector<uint8_t> data = f.extract != f.size ? crilayla(raw) : std::move(raw);
+                    Data x{data};
+                    const long found = long(exefs_blocks(x).size());
+                    std::string group;
+                    for (char ch : f.path.substr(0, f.path.rfind('.')))
+                        group += std::isalnum(static_cast<unsigned char>(ch)) ? char(std::tolower(static_cast<unsigned char>(ch))) : '_';
+                    total2 += extract(group, data, false, out_dir, seen2);
+                    char hex[100] = "";
+                    std::string asc;
+                    for (size_t k = 0; k < 24 && k < data.size(); k++) {
+                        std::snprintf(hex + 3 * k, 4, "%02x ", data[k]);
+                        asc += (data[k] >= 32 && data[k] < 127) ? char(data[k]) : '.';
+                    }
+                    diag += " [" + f.path + " " + std::to_string((unsigned long long)data.size()) + "B blocks=" +
+                            std::to_string(found) + " head: " + hex + "| " + asc + "]";
+                }
+                if (progress) progress(int(sh.size()), int(sh.size()));
+                if (total2 > 0) return total2;
+                throw Fail(diag);
+            }
+            
+            {
                 // Discovery 2: the engine's markers in main, and what is inside the big CPKs.
                 std::string msg;
                 auto mi2 = game.exefs().find("main");
