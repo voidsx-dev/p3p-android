@@ -393,6 +393,93 @@ long extract_shaders(const nxi::GameImage& game, const std::string& out_dir,
         const nxi::GameImage::Entry* cpk = game.find("CPK/ALL_USEU.CPK");
         if (!cpk) {
             {
+                // Discovery 3: the layout of P3P's shader/*.bin files.
+                const nxi::GameImage::Entry* u0 = game.find("data/umd0.cpk");
+                if (!u0) throw Fail("no data/umd0.cpk in the game file");
+                std::string msg, dump;
+                for (const CpkFile& f : cpk_files(game, *u0)) {
+                    std::string low = f.path;
+                    for (char& ch : low) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+                    if (low.rfind("shader/", 0) != 0) continue;
+                    std::vector<uint8_t> raw(size_t(f.size));
+                    if (game.read(*u0, f.offset, raw.data(), raw.size()) != raw.size()) continue;
+                    std::vector<uint8_t> d = f.extract != f.size ? crilayla(raw) : std::move(raw);
+                    auto occurrences = [&](const void* pat, size_t n) {
+                        long c = 0;
+                        const uint8_t* p = static_cast<const uint8_t*>(pat);
+                        auto it = d.begin();
+                        while (c < 100000) {
+                            it = std::search(it, d.end(), p, p + n);
+                            if (it == d.end()) break;
+                            c++;
+                            it += ptrdiff_t(n);
+                        }
+                        return c;
+                    };
+                    const uint8_t ctrl[4] = {0x34, 0x12, 0x76, 0x98}, code1[4] = {0x78, 0x56, 0x34, 0x12},
+                                  code2[4] = {0x79, 0x56, 0x34, 0x12},
+                                  exitp[8] = {0x0f, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0xe3};
+                    msg += "[" + f.path.substr(f.path.rfind('/') + 1) + " " + std::to_string((unsigned long long)d.size()) +
+                           "B n=" + std::to_string(d.size() >= 4 ? le32(d.data()) : 0u) +
+                           " ctrl=" + std::to_string(occurrences(ctrl, 4)) +
+                           " code=" + std::to_string(occurrences(code1, 4) + occurrences(code2, 4)) +
+                           " exit=" + std::to_string(occurrences(exitp, 8)) +
+                           " glsl=" + std::to_string(occurrences("#version", 8) + occurrences("void main", 9)) +
+                           " names=" + std::to_string(occurrences("shader_", 7)) + " at";
+                    int shown = 0;
+                    auto at = d.begin();
+                    const char* key = "shader_";
+                    while (shown < 4) {
+                        at = std::search(at, d.end(), key, key + 7);
+                        if (at == d.end()) break;
+                        const size_t off = size_t(at - d.begin());
+                        std::string s;
+                        for (size_t k = off; k < d.size() && d[k] && s.size() < 40; k++) s += char(d[k]);
+                        char pre[40] = "";
+                        for (size_t k = 0; k < 8 && off >= 8; k++) std::snprintf(pre + 3 * k, 4, "%02x ", d[off - 8 + k]);
+                        msg += " " + std::to_string(off) + ":" + s + "(" + pre + ")";
+                        shown++;
+                        at += 7;
+                    }
+                    msg += "] ";
+                    const bool small = d.size() <= 2400, medium = low.find("f_sprite") != std::string::npos;
+                    if (small) {
+                        msg += "HEX@24:";
+                        for (size_t k = 24; k < 120 && k < d.size(); k++) {
+                            char b[4];
+                            std::snprintf(b, sizeof b, "%02x", d[k]);
+                            msg += " ";
+                            msg += b;
+                        }
+                        msg += " ";
+                    }
+                    if (small || medium) {
+                        const size_t lim = small ? d.size() : size_t(512);
+                        dump += "== " + f.path + " (" + std::to_string((unsigned long long)d.size()) + " bytes, first " +
+                                std::to_string((unsigned long long)lim) + ")\n";
+                        for (size_t o = 0; o < lim && o < d.size(); o += 16) {
+                            char line[100];
+                            int w = std::snprintf(line, sizeof line, "%04x: ", unsigned(o));
+                            std::string asc;
+                            for (size_t k = 0; k < 16 && o + k < lim && o + k < d.size(); k++) {
+                                w += std::snprintf(line + w, sizeof line - size_t(w), "%02x ", d[o + k]);
+                                asc += (d[o + k] >= 32 && d[o + k] < 127) ? char(d[o + k]) : '.';
+                            }
+                            dump += std::string(line) + " " + asc + "\n";
+                        }
+                    }
+                }
+                for (const char* dir : {"/storage/emulated/0/Persona 3 Portable", "/sdcard/Persona 3 Portable"}) {
+                    try {
+                        make_dir(dir);
+                        write_file(std::string(dir) + "/shader_dump.txt", reinterpret_cast<const uint8_t*>(dump.data()), dump.size());
+                        break;
+                    } catch (...) {
+                    }
+                }
+                throw Fail(msg + "Dump: Persona 3 Portable/shader_dump.txt");
+            }
+            {
                 // P3P: its shaders are the few files in the shader/ folder of data/umd0.cpk.
                 const nxi::GameImage::Entry* u0 = game.find("data/umd0.cpk");
                 if (!u0) throw Fail("no data/umd0.cpk in the game file");
