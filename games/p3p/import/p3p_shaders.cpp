@@ -391,7 +391,59 @@ long extract_shaders(const nxi::GameImage& game, const std::string& out_dir,
     try {
         make_dir(out_dir);
         const nxi::GameImage::Entry* cpk = game.find("CPK/ALL_USEU.CPK");
-        if (!cpk) throw Fail("the game file has no CPK/ALL_USEU.CPK (is it Persona 3 Portable?)");
+        if (!cpk) {
+            // Discovery: list the RomFS, save the list, and say what was found in the error.
+            std::vector<std::pair<std::string, uint64_t>> files;
+            std::vector<std::string> stack{""};
+            while (!stack.empty()) {
+                std::string d = stack.back();
+                stack.pop_back();
+                for (auto& [n, e] : game.list(d)) {
+                    std::string p = d.empty() ? n : d + "/" + n;
+                    if (e.dir) stack.push_back(p);
+                    else files.push_back({p, e.size});
+                }
+            }
+            std::map<std::string, std::pair<long, uint64_t>> by_ext;
+            std::string all;
+            for (auto& f : files) {
+                all += f.first + "\t" + std::to_string((unsigned long long)f.second) + "\n";
+                size_t dot = f.first.rfind('.'), slash = f.first.rfind('/');
+                std::string ext = (dot != std::string::npos && (slash == std::string::npos || dot > slash))
+                                      ? f.first.substr(dot) : "(none)";
+                by_ext[ext].first++;
+                by_ext[ext].second += f.second;
+            }
+            for (const char* dir : {"/storage/emulated/0/Persona 3 Portable", "/sdcard/Persona 3 Portable"}) {
+                try {
+                    make_dir(dir);
+                    write_file(std::string(dir) + "/romfs_list.txt", reinterpret_cast<const uint8_t*>(all.data()), all.size());
+                    break;
+                } catch (...) {
+                }
+            }
+            long embedded = -1;
+            auto mi = game.exefs().find("main");
+            if (mi != game.exefs().end()) {
+                std::vector<uint8_t> flat;
+                std::string e2;
+                if (nxi::nso_to_flat_image(mi->second, flat, e2)) {
+                    Data x{flat};
+                    embedded = long(exefs_blocks(x).size());
+                }
+            }
+            std::sort(files.begin(), files.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+            std::string msg = "no CPK/ALL_USEU.CPK. RomFS: " + std::to_string(files.size()) +
+                              " files. Embedded shaders in main: " + std::to_string(embedded) + ". Types:";
+            int shown = 0;
+            for (auto& [ext, v] : by_ext)
+                if (shown++ < 20) msg += " " + ext + "=" + std::to_string(v.first) + "/" + std::to_string(v.second >> 20) + "MB";
+            msg += ". Largest:";
+            for (size_t i = 0; i < files.size() && i < 10; i++)
+                msg += " " + files[i].first + "(" + std::to_string(files[i].second >> 20) + "MB)";
+            msg += ". List in Persona 3 Portable/romfs_list.txt";
+            throw Fail(msg);
+        }
         auto main_it = game.exefs().find("main");
         if (main_it == game.exefs().end()) throw Fail("the game file's ExeFS has no main");
         std::vector<CpkFile> gscs;
