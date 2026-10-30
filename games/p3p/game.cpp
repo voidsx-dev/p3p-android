@@ -1,5 +1,4 @@
 // Persona 3 Portable (Nintendo Switch): what the shared runtime needs to know about the game.
-// First version: no game-specific hooks.
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -11,21 +10,27 @@
 
 namespace nx {
 
-// The workflow fills in the Title ID.
 constexpr uint64_t kP3pTitleId = 0x0100DCD01525A000ull;
 
 const game::Info game::kInfo = {"p3p", "Persona 3 Portable", kP3pTitleId, "io.github.p3pandroid", "private/p3p",
-                                0 /* system resource size */,
-                                nullptr /* build ID: any version for now */};
+                                0 /* system resource size */, nullptr /* build ID: any version */};
 
 namespace {
 
 void glslc_fail(CPU& c) {
-    log("p3p: %s called: run-time shader compilation is not supported", hle_current_name());
+    static int n = 0;
+    if (n++ < 20)
+        log("p3p: %s called from %s (x0=%llx x1=%llx x2=%llx): run-time shader compilation is not supported",
+            hle_current_name(), describe(c.x[30]).c_str(), (unsigned long long)c.x[0], (unsigned long long)c.x[1],
+            (unsigned long long)c.x[2]);
     c.x[0] = 0;
 }
 
-void glslc_nop(CPU& c) { c.x[0] = 0; }
+void glslc_nop(CPU& c) {
+    static int n = 0;
+    if (n++ < 20) log("p3p: %s called from %s", hle_current_name(), describe(c.x[30]).c_str());
+    c.x[0] = 0;
+}
 
 void fputs_logged(CPU& c) {
     static const uint64_t real = find_symbol("fputs");
@@ -53,7 +58,7 @@ NX_HLE("glslcGetDefaultOptions", glslc_nop);
 NX_HLE("glslcGetVersion", glslc_nop);
 
 void game::after_init() { log("p3p: after_init (no game-specific patches yet)"); }
-void game::renderer_start() {}
-void game::first_frame() {}
+void game::renderer_start() { log("p3p: renderer_start"); }
+void game::first_frame() { log("p3p: first_frame"); }
 
 }  // namespace nx
