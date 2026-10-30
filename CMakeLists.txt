@@ -271,6 +271,16 @@ if(ANDROID AND NX_GAME STREQUAL "p5r")
     target_link_options(p5rimport PRIVATE -Wl,-z,max-page-size=16384)
 endif()
 
+# P3P's import on the phone (games/p3p/import), as P5R's above.
+if(ANDROID AND NX_GAME STREQUAL "p3p")
+    add_library(p3pimport SHARED games/p3p/import/p3p_import_jni.cpp games/p3p/import/p3p_shaders.cpp
+        "${NX_IMPORTER_DIR}/nximport.cpp" "${NX_IMPORTER_DIR}/nxcrypto.cpp")
+    target_include_directories(p3pimport PRIVATE "${NX_IMPORTER_DIR}" games/p3p/import)
+    target_compile_options(p3pimport PRIVATE -O2 -fvisibility=hidden -march=armv8-a+crypto)
+    target_link_libraries(p3pimport PRIVATE log dl)
+    target_link_options(p3pimport PRIVATE -Wl,-z,max-page-size=16384)
+endif()
+
 # NX_RELEASE: the runtime and the game's glue only (the recompiled game code does not change with it).
 if(NX_RELEASE)
     target_compile_definitions(${NX_GAME} PRIVATE NX_RELEASE)

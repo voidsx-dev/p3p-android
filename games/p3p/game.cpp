@@ -12,7 +12,7 @@
 namespace nx {
 
 // The workflow fills in the Title ID.
-constexpr uint64_t kP3pTitleId = 0x0000000000000000ull;
+constexpr uint64_t kP3pTitleId = 0x0100DCD01525A000ull;
 
 const game::Info game::kInfo = {"p3p", "Persona 3 Portable", kP3pTitleId, "io.github.p3pandroid", "private/p3p",
                                 0 /* system resource size */,
