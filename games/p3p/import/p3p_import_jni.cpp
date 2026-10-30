@@ -97,8 +97,17 @@ int run(int nsp_fd, const std::string& nsp_name, const std::string& keys, const 
     remove_tree(work_dir);
     mkdir(work_dir.c_str(), 0700);
     const std::string extracted = work_dir + "/shaders";
-    long blocks = p3p::extract_shaders(*game, extracted, [](int d, int t) { g_done = d, g_total = t; }, err);
-    if (blocks < 0) return fail(err);
+    long blocks = 0;  // P3P: no shader extraction yet; finish the import so the game can start and we can read its log
+    (void)extracted;
+    mkdir(data_dir.c_str(), 0755);
+    mkdir((data_dir + "/spirv").c_str(), 0755);
+    if (FILE* f0 = std::fopen((data_dir + "/spirv/import.txt").c_str(), "w")) {
+        std::fprintf(f0, "%s\n%s\n0 shaders\n", nsp_name.c_str(), id);
+        std::fclose(f0);
+    }
+    remove_tree(work_dir);
+    g_phase = 5;
+    return 0;
 
     // 3. translated (the harness counts its own progress)
     g_phase = 3, g_done = 0, g_total = int(blocks);
