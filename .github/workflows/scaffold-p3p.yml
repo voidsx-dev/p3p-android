@@ -1,0 +1,135 @@
+name: scaffold-p3p
+
+on:
+  workflow_dispatch:
+    inputs:
+      title_id:
+        description: "Title ID of the base game, 16 hex digits (e.g. 0100ABCD12345000)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scaffold games/p3p
+        env:
+          TITLE_ID: ${{ inputs.title_id }}
+        run: |
+          python3 - <<'PY'
+          import os, re, shutil
+          from pathlib import Path
+
+          title = os.environ["TITLE_ID"].strip().upper()
+          if title.startswith("0X"):
+              title = title[2:]
+          if not re.fullmatch(r"[0-9A-F]{16}", title):
+              raise SystemExit("Invalid Title ID: " + repr(title) + " (needs 16 hex digits)")
+
+          SRC = Path("games/p5r")
+          DST = Path("games/p3p")
+          TEXT = {".java", ".cpp", ".h", ".c", ".xml", ".txt", ".md"}
+
+          def conv_name(n):
+              return n.replace("p5rrecomp", "p3pandroid").replace("p5r", "p3p")
+
+          def conv(t):
+              t = t.replace("01005CA01580E000", title)
+              t = t.replace("Persona 5 Royal", "Persona 3 Portable")
+              t = t.replace("p5rrecomp", "p3pandroid")
+              t = t.replace("P5R", "P3P")
+              return t.replace("p5r", "p3p")
+
+          def read(p):
+              return Path(p).read_text(encoding="utf-8")
+
+          def write(p, t):
+              p = Path(p)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(t, encoding="utf-8")
+
+          def patch_file(path, reps):
+              raw = Path(path).read_bytes()
+              bom = raw.startswith(b"\xef\xbb\xbf")
+              t = raw.decode("utf-8-sig")
+              for old, new in reps:
+                  if new in t:
+                      continue
+                  if old not in t:
+                      raise SystemExit(str(path) + ": text not found: " + old)
+                  t = t.replace(old, new, 1)
+              Path(path).write_bytes((b"\xef\xbb\xbf" if bom else b"") + t.encode("utf-8"))
+
+          g = DST / "game.cpp"
+          if not g.exists():
+              raise SystemExit("games/p3p/game.cpp does not exist: create it first")
+          gt = read(g)
+          if "0x0000000000000000ull" in gt:
+              write(g, gt.replace("0x0000000000000000ull", "0x" + title + "ull"))
+
+          jsrc = SRC / "java"
+          if not jsrc.exists():
+              raise SystemExit("games/p5r/java not found")
+          if (DST / "java").exists():
+              shutil.rmtree(DST / "java")
+          for f in sorted(jsrc.rglob("*")):
+              if f.is_dir():
+                  continue
+              rel = Path(*[conv_name(x) for x in f.relative_to(jsrc).parts])
+              out = DST / "java" / rel
+              if f.suffix.lower() in TEXT:
+                  write(out, conv(read(f)))
+              else:
+                  out.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(f, out)
+
+          for name in ["p5r_import_jni.cpp", "p5r_shaders.cpp", "p5r_shaders.h"]:
+              write(DST / "import" / conv_name(name), conv(read(SRC / "import" / name)))
+
+          jni = DST / "import" / "p3p_import_jni.cpp"
+          patch_file(jni, [
+              ('"708BCACA873EA32B"', '""'),
+              ("if (std::strcmp(id, kBuildId) != 0)", "if (kBuildId[0] && std::strcmp(id, kBuildId) != 0)"),
+          ])
+
+          write(DST / "AndroidManifest.xml", conv(read(SRC / "AndroidManifest.xml")))
+
+          cm = Path("CMakeLists.txt")
+          ct = cm.read_text(encoding="utf-8")
+          if 'NX_GAME STREQUAL "p3p"' not in ct:
+              anchor = "# NX_RELEASE: the runtime and the game's glue only"
+              if anchor not in ct:
+                  raise SystemExit("CMakeLists.txt: anchor not found")
+              block = '''# P3P's import on the phone (games/p3p/import), as P5R's above.
+          if(ANDROID AND NX_GAME STREQUAL "p3p")
+              add_library(p3pimport SHARED games/p3p/import/p3p_import_jni.cpp games/p3p/import/p3p_shaders.cpp
+                  "${NX_IMPORTER_DIR}/nximport.cpp" "${NX_IMPORTER_DIR}/nxcrypto.cpp")
+              target_include_directories(p3pimport PRIVATE "${NX_IMPORTER_DIR}" games/p3p/import)
+              target_compile_options(p3pimport PRIVATE -O2 -fvisibility=hidden -march=armv8-a+crypto)
+              target_link_libraries(p3pimport PRIVATE log dl)
+              target_link_options(p3pimport PRIVATE -Wl,-z,max-page-size=16384)
+          endif()
+
+          '''
+              cm.write_text(ct.replace(anchor, block + anchor, 1), encoding="utf-8")
+
+          patch_file("android/build_apk.ps1", [
+              ('if ($Nce -and $Game -eq "p5r") {', 'if ($Nce -and ($Game -eq "p5r" -or $Game -eq "p3p")) {'),
+              ('$targets += "p5rimport"', '$targets += "${Game}import"'),
+              ('"$build\\libp5rimport.so"', '"$build\\lib${Game}import.so"'),
+          ])
+
+          print("scaffold done, Title ID", title)
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Scaffold games/p3p from games/p5r" || echo "nothing to commit"
+          git push
