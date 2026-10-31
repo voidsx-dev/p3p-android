@@ -18,114 +18,106 @@ const game::Info game::kInfo = {"p3p", "Persona 3 Portable", kP3pTitleId, "io.gi
 
 namespace {
 
-uint64_t g_main_base = 0;
 uint64_t g_sdk_base = 0;
-uint64_t g_abort_orig = 0;
+uint64_t g_abort_orig = 0, g_abort_msg_orig = 0, g_send_orig = 0;
 
-// Target of the BL at `addr` (0 if it is not a BL).
-uint64_t bl_target(uint64_t addr) {
-    const uint32_t w = *reinterpret_cast<const uint32_t*>(addr);
-    if ((w & 0xFC000000u) != 0x94000000u) return 0;
-    int64_t v = int64_t(w & 0x3FFFFFFu);
-    if (v & 0x2000000) v -= 0x4000000;
-    return addr + uint64_t(v * 4);
+bool readable(uint64_t p, uint64_t n) { return p >= 0x100000 && n <= 0x100000 && p + n < 0x7000000000ull; }
+
+std::string guest_str(uint64_t p) {
+    if (!p) return "(null)";
+    if (!readable(p, 1)) return "(not a guest pointer)";
+    const char* s = reinterpret_cast<const char*>(p);
+    std::string out(s, strnlen(s, 300));
+    for (char& ch : out)
+        if (ch < 32 || ch > 126) ch = '.';
+    return out;
 }
 
-// A PLT stub is: adrp x16, page / ldr x17, [x16, #off] / add x16, x16, #off / br x17. `got` is the slot it loads from,
-// `target` what the slot holds (the function the import was linked to).
-bool plt_target(uint64_t stub, uint64_t& got, uint64_t& target) {
-    const uint32_t* w = reinterpret_cast<const uint32_t*>(stub);
-    if ((w[0] & 0x9F00001Fu) != 0x90000010u) return false;
-    if ((w[1] & 0xFFC003FFu) != 0xF9400211u) return false;
-    if (w[3] != 0xD61F0220u) return false;
-    int64_t imm = (int64_t((w[0] >> 5) & 0x7FFFFu) << 2) | int64_t((w[0] >> 29) & 3u);
-    if (imm & 0x100000) imm -= 0x200000;
-    const uint64_t page = (stub & ~uint64_t(0xFFF)) + uint64_t(imm * 4096);
-    got = page + uint64_t((w[1] >> 10) & 0xFFFu) * 8;
-    target = *reinterpret_cast<const uint64_t*>(got);
-    return true;
-}
-
-struct Probe {
-    const char* name;
-    uint64_t orig;
-    int logged;
-};
-Probe g_probe[3] = {{"A's callee", 0, 0}, {"B's callee", 0, 0}, {"call after the 32 MiB allocation", 0, 0}};
-
-template <int I>
-void probe_hook(CPU& c) {
-    Probe& p = g_probe[I];
-    const uint64_t a0 = c.x[0], a1 = c.x[1], a2 = c.x[2], a3 = c.x[3], lr = c.x[30];
-    call(c, p.orig);
-    if (p.logged < 10) {
-        p.logged++;
-        log("p3p: %s (x0=%llx x1=%llx x2=%llx x3=%llx) from %s -> x0=%llx", p.name, (unsigned long long)a0,
-            (unsigned long long)a1, (unsigned long long)a2, (unsigned long long)a3, describe(lr).c_str(),
-            (unsigned long long)c.x[0]);
-    }
-}
-
-void (*const kHooks[3])(CPU&) = {probe_hook<0>, probe_hook<1>, probe_hook<2>};
-uint64_t g_hooked[3] = {0, 0, 0};
-
-// What the BL at main+bl_off calls, through its PLT stub: the name of the import, and a logging hook on it when it is
-// in the sdk module (hooks on main functions do not work: its trampoline area is out of branch range).
-void resolve(int idx, const char* name, uint64_t bl_off) {
-    const uint64_t stub = bl_target(g_main_base + bl_off);
-    if (!stub) {
-        log("p3p: %s: no BL at main+%llx", name, (unsigned long long)bl_off);
-        return;
-    }
-    uint64_t got = 0, target = 0;
-    if (plt_target(stub, got, target)) {
-        log("p3p: %s: BL main+%llx -> PLT main+%llx, GOT main+%llx holds %llx = %s", name, (unsigned long long)bl_off,
-            (unsigned long long)(stub - g_main_base), (unsigned long long)(got - g_main_base), (unsigned long long)target,
-            target ? describe(target).c_str() : "(null)");
-    } else {
-        target = stub;
-        log("p3p: %s: BL main+%llx goes straight to main+%llx (not a PLT stub)", name, (unsigned long long)bl_off,
-            (unsigned long long)(stub - g_main_base));
-    }
-    if (!target) return;
-    for (uint64_t h : g_hooked)
-        if (h == target) {
-            log("p3p: %s: same function as another probe, not hooked twice", name);
-            return;
+// The printable runs (4+ characters) of a buffer, joined with " | ".
+std::string text_of(uint64_t p, uint64_t n) {
+    std::string out, run;
+    const uint8_t* b = reinterpret_cast<const uint8_t*>(p);
+    auto flush = [&] {
+        if (run.size() >= 4 && out.size() < 600) {
+            if (!out.empty()) out += " | ";
+            out += run;
         }
-    const LoadedModule* m = module_at(target);
-    if (m && m->base == g_sdk_base) {
-        g_probe[idx].orig = hook_function(target, kHooks[idx]);
-        g_hooked[idx] = target;
-        log("p3p: %s: hook %s", name, g_probe[idx].orig ? "ok" : "FAILED");
-    } else {
-        log("p3p: %s: target is not in the sdk module, not hooked", name);
-    }
-}
-
-// The imports of the video and graphics libraries, by name, out of the game's PLT.
-void scan_plt() {
-    static const char* const kWords[] = {"2vi", "nnvi", "nvdrv", "Graphics", "nvInit", "nvSet", "Layer", "Display", "3hid"};
-    int decoded = 0, shown = 0;
-    for (uint64_t off = 0x38b800; off < 0x38d800; off += 16) {
-        uint64_t got = 0, target = 0;
-        if (!plt_target(g_main_base + off, got, target) || !target) continue;
-        decoded++;
-        const std::string d = describe(target);
-        bool hit = false;
-        for (const char* k : kWords)
-            if (d.find(k) != std::string::npos) hit = true;
-        if (hit && shown < 60) {
-            shown++;
-            log("p3p: PLT main+%llx -> %s", (unsigned long long)off, d.c_str());
+        run.clear();
+    };
+    for (uint64_t i = 0; i < n; i++) {
+        const uint8_t ch = b[i];
+        if (ch >= 32 && ch < 127) {
+            run += char(ch);
+            if (run.size() > 300) flush();
+        } else {
+            flush();
         }
     }
-    log("p3p: PLT scan: %d stubs decoded, %d shown", decoded, shown);
+    flush();
+    return out;
 }
 
+// A HIPC request (the 0x100-byte message at TLS): its pointer (X) and send (A) buffers are where the log service's
+// messages, file paths and the like travel. Logs the text found in them (the first 80 requests that carry some).
+void note_request(uint64_t handle, uint64_t msg) {
+    if (!readable(msg, 0x100)) return;
+    const uint32_t* w = reinterpret_cast<const uint32_t*>(msg);
+    const uint32_t type = w[0] & 0xFFFF, nstat = (w[0] >> 16) & 0xF, nsend = (w[0] >> 20) & 0xF,
+                   nrecv = (w[0] >> 24) & 0xF, nexch = (w[0] >> 28) & 0xF;
+    if (type != 4 && type != 6) return;
+    size_t i = 2;
+    if (w[1] >> 31) {  // special header: pid and handles
+        const uint32_t sp = w[2];
+        i = 3;
+        if (sp & 1) i += 2;
+        i += (sp >> 1) & 0xF;
+        i += (sp >> 5) & 0xF;
+    }
+    std::string text;
+    auto add = [&](uint64_t addr, uint64_t size) {
+        if (size == 0 || size > 0x2000 || !readable(addr, size)) return;
+        const std::string t = text_of(addr, size);
+        if (t.empty()) return;
+        if (!text.empty()) text += " ## ";
+        text += t;
+    };
+    for (uint32_t k = 0; k < nstat && i + 2 <= 64; k++, i += 2) {
+        const uint64_t addr = uint64_t(w[i + 1]) | (uint64_t((w[i] >> 12) & 0xF) << 32) | (uint64_t((w[i] >> 6) & 7) << 36);
+        add(addr, w[i] >> 16);
+    }
+    for (uint32_t k = 0; k < nsend + nrecv + nexch && i + 3 <= 64; k++, i += 3) {
+        if (k >= nsend) continue;  // only the send buffers (A)
+        const uint64_t size = uint64_t(w[i]) | (uint64_t((w[i + 2] >> 24) & 0xF) << 32);
+        const uint64_t addr = uint64_t(w[i + 1]) | (uint64_t((w[i + 2] >> 28) & 0xF) << 32) |
+                              (uint64_t((w[i + 2] >> 2) & 7) << 36);
+        add(addr, size);
+    }
+    if (text.size() < 6) return;
+    static int logged = 0;
+    if (logged++ < 80)
+        log("p3p: ipc text (handle %llx, type %u): %s", (unsigned long long)handle, type, text.substr(0, 400).c_str());
+}
+
+// nn::sf::hipc::SendSyncRequest(handle, message, size): every IPC call of the sdk goes through it.
+void send_hook(CPU& c) {
+    note_request(c.x[0], c.x[1]);
+    call(c, g_send_orig);
+}
+
+// AbortImpl(expr, func, file, line): the plain variant.
 void abort_hook(CPU& c) {
-    log("p3p: ABORT (AbortImpl) from %s", describe(c.x[30]).c_str());
+    log("p3p: ABORT expr=\"%s\" func=\"%s\" file=\"%s\" line=%d, from %s", guest_str(c.x[0]).c_str(),
+        guest_str(c.x[1]).c_str(), guest_str(c.x[2]).c_str(), int(c.x[3]), describe(c.x[30]).c_str());
     if (g_abort_orig) call(c, g_abort_orig);
+}
+
+// AbortImpl(expr, func, file, line, fmt, ...): the variant with a message, the one the game's abort() ends in.
+void abort_msg_hook(CPU& c) {
+    log("p3p: ABORT+msg expr=\"%s\" func=\"%s\" file=\"%s\" line=%d fmt=\"%s\" args %llx %llx %llx, from %s",
+        guest_str(c.x[0]).c_str(), guest_str(c.x[1]).c_str(), guest_str(c.x[2]).c_str(), int(c.x[3]),
+        guest_str(c.x[4]).c_str(), (unsigned long long)c.x[5], (unsigned long long)c.x[6], (unsigned long long)c.x[7],
+        describe(c.x[30]).c_str());
+    if (g_abort_msg_orig) call(c, g_abort_msg_orig);
 }
 
 void glslc_fail(CPU& c) {
@@ -155,6 +147,8 @@ void fputs_logged(CPU& c) {
     else c.x[0] = 0;
 }
 
+void hid_nop(CPU& c) { c.x[0] = 0; }
+
 }  // namespace
 
 NX_HLE("fputs", fputs_logged);
@@ -169,25 +163,21 @@ NX_HLE("glslcGetDefaultOptions", glslc_nop);
 NX_HLE("glslcGetVersion", glslc_nop);
 
 // P3P reads touch through nn::hid's gesture API, which the runtime does not provide yet: no gestures for now.
-static void hid_nop(CPU& c) { c.x[0] = 0; }
 NX_HLE("_ZN2nn3hid17InitializeGestureEv", hid_nop);
 NX_HLE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", hid_nop);
 
 void game::after_init() {
     log("p3p: after_init");
-    if (const LoadedModule* m = module_at(find_symbol("nnMain"))) g_main_base = m->base;
     if (const LoadedModule* s = module_at(find_symbol("nnosInitialize"))) g_sdk_base = s->base;
-    uint64_t a = find_symbol("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_i");
-    if (!a && g_sdk_base) a = g_sdk_base + 0x8d9f0;
-    if (a && (g_abort_orig = hook_function(a, abort_hook))) log("p3p: AbortImpl hooked");
-    if (!g_main_base || !g_sdk_base) {
-        log("p3p: main or sdk base not found");
-        return;
-    }
-    scan_plt();
-    resolve(2, "call after the 32 MiB allocation", 0x237ba4);
-    resolve(0, "A's callee", 0x23ef00 + 0x18);
-    resolve(1, "B's callee", 0x240fb0 + 0x18);
+    auto hook = [](const char* sym, uint64_t fallback, void (*fn)(CPU&), uint64_t& orig, const char* what) {
+        uint64_t a = find_symbol(sym);
+        if (!a && g_sdk_base) a = g_sdk_base + fallback;
+        orig = a ? hook_function(a, fn) : 0;
+        log("p3p: hook %s: %s", what, orig ? "ok" : "FAILED");
+    };
+    hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_i", 0x8d9f0, abort_hook, g_abort_orig, "AbortImpl");
+    hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_iS3_z", 0x8d980, abort_msg_hook, g_abort_msg_orig, "AbortImpl(msg)");
+    hook("_ZN2nn2sf4hipc15SendSyncRequestENS_3svc6HandleEPvm", 0x13f290, send_hook, g_send_orig, "SendSyncRequest");
 }
 void game::renderer_start() { log("p3p: renderer_start"); }
 void game::first_frame() { log("p3p: first_frame"); }
