@@ -3,6 +3,9 @@
 // the game (released + system event signalled) when it has been played, so the device clock paces FMOD's mixer.
 // Without a device the same pacing runs on a timer. Audio input reports no devices. SDK 16 games (Wonder) use the
 // AudioRenderer instead, rendered in process; its final mix goes to the same device (see below).
+//
+// P3P change: the channel count the game asks for in OpenDefaultAudioOut (6 for Persona 3 Portable) is kept and
+// reported back by GetAudioOutChannelCount; buffers with more than 2 channels are folded to stereo before the device.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -202,7 +205,8 @@ void GetReleasedAudioOutBuffer(CPU& c) {
 }
 
 // What the output is, for games that ask (P5R's CRI mixer sizes its buffers from these; the sdk's own versions read
-// the fields a real OpenDefaultAudioOut fills, which ours does not): 48 kHz, stereo, PcmInt16 (SampleFormat 2).
+// the fields a real OpenDefaultAudioOut fills, which ours does not): 48 kHz, PcmInt16 (SampleFormat 2), and the
+// channel count the game asked for when it opened the output (2 when it did not say).
 void GetAudioOutSampleRate(CPU& c) { c.x[0] = 48000; }
 void GetAudioOutChannelCount(CPU& c) {
     static int n = 0;
