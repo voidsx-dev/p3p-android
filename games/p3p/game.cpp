@@ -193,6 +193,7 @@ NX_HLE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", hid_nop);
 
 void game::after_init() {
     log("p3p: after_init");
+    setenv("NX_DUMP_SHADER_MISSES", "1", 0);
     if (const LoadedModule* m = module_at(find_symbol("nnMain"))) g_main_base = m->base;
     if (const LoadedModule* s = module_at(find_symbol("nnosInitialize"))) g_sdk_base = s->base;
     auto hook = [](const char* sym, uint64_t fallback, void (*fn)(CPU&), uint64_t& orig, const char* what) {
