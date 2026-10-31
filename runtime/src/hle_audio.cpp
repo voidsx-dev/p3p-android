@@ -31,6 +31,7 @@ struct Out {
     std::condition_variable cv;
     std::deque<uint64_t> queued, released;
     std::shared_ptr<EventState> event = std::make_shared<EventState>();
+    uint32_t channels = 2;  // from the AudioOutParameter of the open
     bool started = false;
     // statistics since the last log (every 1000 buffers)
     uint64_t buffers = 0, silent = 0;
@@ -96,11 +97,11 @@ void player() {
             g_out.queued.pop_front();
             size = ld<uint64_t>(buf + 16);
         }
-        if (device && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), size,
+        if (device && g_out.channels == 2 && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), size,
                                          reinterpret_cast<void*>(buf)))
             continue;
         next = std::max(next, clock::now() - std::chrono::milliseconds(50));
-        next += std::chrono::microseconds(size * 1000000 / kBytesPerSecond);
+        next += std::chrono::microseconds(size * 1000000 / (kBytesPerSecond / 2 * g_out.channels));
         std::this_thread::sleep_until(next);
         release(reinterpret_cast<void*>(buf));
     }
@@ -114,6 +115,11 @@ void InitializeAudioOutParameter(CPU& c) {  // {u32 sample_rate; u16 channels; u
 
 void OpenDefaultAudioOut(CPU& c) {  // (AudioOut*, os::SystemEvent*, const AudioOutParameter&)
     uint64_t out = c.x[0], sysev = c.x[1];
+    {
+        const uint32_t rate = ld<uint32_t>(c.x[2]), ch = ld<uint16_t>(c.x[2] + 4);
+        g_out.channels = ch ? ch : 2;
+        log("audio: OpenDefaultAudioOut: requested %u Hz, %u channels (0 = default) -> %u", rate, ch, g_out.channels);
+    }
     // Give the guest a system event backed by our kernel event: nn::os::AttachSystemEvent(type, read, managed,
     // write, managed, clear mode = manual).
     auto w = std::make_shared<KEvent>();
@@ -181,7 +187,11 @@ void GetReleasedAudioOutBuffer(CPU& c) {
 // What the output is, for games that ask (P5R's CRI mixer sizes its buffers from these; the sdk's own versions read
 // the fields a real OpenDefaultAudioOut fills, which ours does not): 48 kHz, stereo, PcmInt16 (SampleFormat 2).
 void GetAudioOutSampleRate(CPU& c) { c.x[0] = 48000; }
-void GetAudioOutChannelCount(CPU& c) { c.x[0] = 2; }
+void GetAudioOutChannelCount(CPU& c) {
+    static int n = 0;
+    if (n++ < 5) log("audio: GetAudioOutChannelCount -> %u", g_out.channels);
+    c.x[0] = g_out.channels;
+}
 void GetAudioOutSampleFormat(CPU& c) { c.x[0] = 2; }
 void GetAudioOutBufferDataSize(CPU& c) { c.x[0] = ld<uint64_t>(c.x[0] + 16); }
 void GetAudioOutName(CPU& c) {
