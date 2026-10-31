@@ -105,7 +105,7 @@ void resolve(int idx, const char* name, uint64_t bl_off) {
 
 // The imports of the video and graphics libraries, by name, out of the game's PLT.
 void scan_plt() {
-    static const char* const kWords[] = {"2vi", "nnvi", "nvdrv", "Graphics", "nvInit", "nvSet", "Layer", "Display"};
+    static const char* const kWords[] = {"2vi", "nnvi", "nvdrv", "Graphics", "nvInit", "nvSet", "Layer", "Display", "3hid"};
     int decoded = 0, shown = 0;
     for (uint64_t off = 0x38b800; off < 0x38d800; off += 16) {
         uint64_t got = 0, target = 0;
@@ -167,6 +167,11 @@ NX_HLE("glslcFinalize", glslc_nop);
 NX_HLE("glslcSetAllocator", glslc_nop);
 NX_HLE("glslcGetDefaultOptions", glslc_nop);
 NX_HLE("glslcGetVersion", glslc_nop);
+
+// P3P reads touch through nn::hid's gesture API, which the runtime does not provide yet: no gestures for now.
+static void hid_nop(CPU& c) { c.x[0] = 0; }
+NX_HLE("_ZN2nn3hid17InitializeGestureEv", hid_nop);
+NX_HLE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", hid_nop);
 
 void game::after_init() {
     log("p3p: after_init");
