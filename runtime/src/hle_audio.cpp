@@ -97,8 +97,7 @@ void player() {
             g_out.queued.pop_front();
             size = ld<uint64_t>(buf + 16);
         }
-        if (device && g_out.channels == 2 && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), size,
-                                                 uint64_t out_size = size;
+        uint64_t out_size = size;
         if (g_out.channels > 2) {  // fold to stereo in place (the game refills the buffer every time)
             int16_t* pcm = reinterpret_cast<int16_t*>(ld<uint64_t>(buf));
             const uint32_t ch = g_out.channels;
@@ -116,6 +115,7 @@ void player() {
             out_size = frames * 4;
         }
         if (device && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), out_size,
+                                         reinterpret_cast<void*>(buf)))
             continue;
         next = std::max(next, clock::now() - std::chrono::milliseconds(50));
         next += std::chrono::microseconds(size * 1000000 / (kBytesPerSecond / 2 * g_out.channels));
