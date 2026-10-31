@@ -98,7 +98,7 @@ void player() {
             size = ld<uint64_t>(buf + 16);
         }
         if (device && g_out.channels == 2 && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), size,
-        uint64_t out_size = size;
+                                                 uint64_t out_size = size;
         if (g_out.channels > 2) {  // fold to stereo in place (the game refills the buffer every time)
             int16_t* pcm = reinterpret_cast<int16_t*>(ld<uint64_t>(buf));
             const uint32_t ch = g_out.channels;
