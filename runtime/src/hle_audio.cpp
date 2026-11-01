@@ -166,6 +166,7 @@ void OpenDefaultAudioOut(CPU& c) {  // (AudioOut*, os::SystemEvent*, const Audio
 void StartAudioOut(CPU& c) {
     std::lock_guard lk(g_out.lock);
     g_out.started = true;
+    log("audio: StartAudioOut (%zu buffers already queued)", g_out.queued.size());
     g_out.cv.notify_all();
     c.x[0] = 0;
 }
@@ -173,11 +174,16 @@ void StartAudioOut(CPU& c) {
 void StopAudioOut(CPU&) {
     std::lock_guard lk(g_out.lock);
     g_out.started = false;
+    log("audio: StopAudioOut");
 }
 
 void CloseAudioOut(CPU&) {}
 
 void SetAudioOutBufferInfo(CPU& c) {  // (AudioOutBuffer*, void* data, size_t capacity, size_t size)
+    static int sets = 0;
+    if (sets++ < 3)
+        log("audio: SetAudioOutBufferInfo: data %llx capacity %llu size %llu", (unsigned long long)c.x[1],
+            (unsigned long long)c.x[2], (unsigned long long)c.x[3]);
     st<uint64_t>(c.x[0], c.x[1]);
     st<uint64_t>(c.x[0] + 8, c.x[2]);
     st<uint64_t>(c.x[0] + 16, c.x[3]);
@@ -188,6 +194,10 @@ void GetAudioOutBufferDataPointer(CPU& c) { c.x[0] = ld<uint64_t>(c.x[0]); }
 void AppendAudioOutBuffer(CPU& c) {  // (AudioOut*, AudioOutBuffer*)
     std::lock_guard lk(g_out.lock);
     out_stats(c.x[1]);
+    static int appended = 0;
+    if (appended++ < 5)
+        log("audio: AppendAudioOutBuffer #%d: data %llx size %llu", appended, (unsigned long long)ld<uint64_t>(c.x[1]),
+            (unsigned long long)ld<uint64_t>(c.x[1] + 16));
     g_out.queued.push_back(c.x[1]);
     g_out.cv.notify_all();
     c.x[0] = 1;  // bool: appended
@@ -195,6 +205,8 @@ void AppendAudioOutBuffer(CPU& c) {  // (AudioOut*, AudioOutBuffer*)
 
 void GetReleasedAudioOutBuffer(CPU& c) {
     std::lock_guard lk(g_out.lock);
+    static int gets = 0;
+    if (gets++ < 3) log("audio: GetReleasedAudioOutBuffer (%zu released)", g_out.released.size());
     if (g_out.released.empty()) {
         c.x[0] = 0;
         return;
@@ -215,6 +227,12 @@ void GetAudioOutChannelCount(CPU& c) {
 }
 void GetAudioOutSampleFormat(CPU& c) { c.x[0] = 2; }
 void GetAudioOutBufferDataSize(CPU& c) { c.x[0] = ld<uint64_t>(c.x[0] + 16); }
+// nn::audio::AudioOutState: Started = 0, Stopped = 1. The sdk's version reads the real AudioOut object, which ours is not.
+void GetAudioOutState(CPU& c) {
+    static int n = 0;
+    if (n++ < 5) log("audio: GetAudioOutState -> %s", g_out.started ? "Started" : "Stopped");
+    c.x[0] = g_out.started ? 0 : 1;
+}
 void GetAudioOutName(CPU& c) {
     static const char kName[] = "DeviceOut";
     c.x[0] = reinterpret_cast<uint64_t>(kName);
@@ -608,6 +626,7 @@ NX_HLE("_ZN2nn5audio23GetAudioOutChannelCountEPKNS0_8AudioOutE", GetAudioOutChan
 NX_HLE("_ZN2nn5audio23GetAudioOutSampleFormatEPKNS0_8AudioOutE", GetAudioOutSampleFormat);
 NX_HLE("_ZN2nn5audio25GetAudioOutBufferDataSizeEPKNS0_14AudioOutBufferE", GetAudioOutBufferDataSize);
 NX_HLE("_ZN2nn5audio15GetAudioOutNameEPKNS0_8AudioOutE", GetAudioOutName);
+NX_HLE("_ZN2nn5audio16GetAudioOutStateEPKNS0_8AudioOutE", GetAudioOutState);
 NX_HLE("_ZN2nn5audio12ListAudioInsEPNS0_11AudioInInfoEi", ListAudioIns);
 NX_HLE("_ZN2nn5audio11OpenAudioInEPNS0_7AudioInEPKcRKNS0_16AudioInParameterE", audio_in_fail);
 NX_HLE("_ZN2nn5audio26InitializeAudioInParameterEPNS0_16AudioInParameterE", zero);
