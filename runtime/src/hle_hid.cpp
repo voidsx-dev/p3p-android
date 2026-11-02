@@ -1,7 +1,11 @@
 // nn::hid at the API level: player 1's Npad state comes from the platform (XInput + keyboard on Windows, game
 // controllers + touch on Android). Vibration is accepted and dropped.
+//
+// P3P change: each stick is kept inside the unit circle, and the first diagonal samples are logged ("hid: stick ...").
 #include <array>
 #include <atomic>
+#include <cmath>
+#include <cstdlib>
 #include <deque>
 #include <algorithm>
 #include <cstring>
@@ -59,6 +63,18 @@ PadState read() {
     for (const auto& s : script)
         if (g_frame >= s.frame && g_frame < s.frame + 8) p.buttons |= s.buttons;
     read_pad(p);
+    // Keep each stick inside the unit circle: the corner of a square gate (a keyboard, some pads, a touch stick limited
+    // per axis) is 1.41 long, which no real Joy-Con reports and which input code written for one may not expect.
+    {
+        const double lm = std::hypot(double(p.lx), double(p.ly));
+        if (lm > double(kStickMax))
+            p.lx = decltype(p.lx)(double(p.lx) * double(kStickMax) / lm),
+            p.ly = decltype(p.ly)(double(p.ly) * double(kStickMax) / lm);
+        const double rm = std::hypot(double(p.rx), double(p.ry));
+        if (rm > double(kStickMax))
+            p.rx = decltype(p.rx)(double(p.rx) * double(kStickMax) / rm),
+            p.ry = decltype(p.ry)(double(p.ry) * double(kStickMax) / rm);
+    }
     // Stick directions as buttons, like the hid sysmodule reports them.
     constexpr int32_t t = kStickMax / 2;
     if (p.lx < -t) p.buttons |= kStickLLeft;
@@ -89,6 +105,19 @@ void GetNpadState(CPU& c) {
     PadState p = read();
     static bool pressed = false;
     if (p.buttons && !pressed) log("hid: first buttons %llx", (unsigned long long)p.buttons), pressed = true;
+    {   // what the game is given on a diagonal (both axes well off centre): the first 60 samples, one in five
+        static int diag = 0, skip = 0;
+        if (diag < 60 && std::abs(int(p.lx)) > 6000 && std::abs(int(p.ly)) > 6000 && skip++ % 5 == 0) {
+            diag++;
+            log("hid: stick diagonal lx %d ly %d (length %.0f of %d) buttons %llx via %s", int(p.lx), int(p.ly),
+                std::hypot(double(p.lx), double(p.ly)), int(kStickMax), (unsigned long long)p.buttons, hle_current_name());
+        }
+        static int right = 0;
+        if (right < 20 && (std::abs(int(p.rx)) > 6000 || std::abs(int(p.ry)) > 6000)) {
+            right++;
+            log("hid: right stick rx %d ry %d", int(p.rx), int(p.ry));
+        }
+    }
     st<uint64_t>(out + 8, p.buttons);
     st<int32_t>(out + 16, p.lx);
     st<int32_t>(out + 20, p.ly);
