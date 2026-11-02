@@ -423,6 +423,34 @@ uint32_t live_flags() {
 
 bool live_clears_why() { return live_flags() & kLiveClearsWhy; }
 
+// P3P window-origin experiments, read from "live_flags" or "live_flags.txt" in the data folder (every ~30 frames):
+// vp_noflip = draw with Vulkan's own viewport mapping (NVN's lower-left origin), present_flip = the final picture
+// turned over when shown, cull_swap = the opposite front face.
+namespace {
+uint32_t origin_flags() {
+    static std::atomic<uint64_t> next_check{0};
+    static std::atomic<uint32_t> flags{0};
+    const uint64_t f = g_frame.load();
+    if (f < next_check.load()) return flags.load();
+    next_check.store(f + 30);
+    uint32_t now = 0;
+    FILE* file = plat::kDiagnostics ? plat::fopen_utf8(plat::data_root() + "/live_flags", "rb") : nullptr;
+    if (!file && plat::kDiagnostics) file = plat::fopen_utf8(plat::data_root() + "/live_flags.txt", "rb");
+    if (file) {
+        char words[256] = {};
+        std::fread(words, 1, sizeof words - 1, file);
+        std::fclose(file);
+        if (std::strstr(words, "vp_noflip")) now |= 1;
+        if (std::strstr(words, "present_flip")) now |= 2;
+        if (std::strstr(words, "cull_swap")) now |= 4;
+    }
+    const uint32_t before = flags.exchange(now);
+    if (before != now) log("origin flags: %x (was %x) at frame %llu", now, before, (unsigned long long)f);
+    return now;
+}
+}  // namespace
+bool live_present_flip() { return (origin_flags() & 2) != 0; }
+
 bool exp_no_write_backs() {
     static const bool env = std::getenv("NX_EXP_NO_WB") != nullptr;
     return env || (live_flags() & kLiveNoWb);
@@ -823,7 +851,13 @@ bool draw(VkCommandBuffer cb, const Targets& t, uint32_t mode, bool indexed, con
         vp.x *= 0.75f, vp.y *= 0.75f, vp.width *= 0.75f, vp.height *= 0.75f;
         sc = {{sc.offset.x * 3 / 4, sc.offset.y * 3 / 4}, {sc.extent.width * 3 / 4, sc.extent.height * 3 / 4}};
     }
-    vp.y += vp.height, vp.height = -vp.height;
+    if (origin_flags() & 1) {  // P3P experiment: a lower-left origin is Vulkan's own mapping; y counts from the bottom
+        const int32_t H = int32_t(g_pass_extent.height);
+        if (g_state.has_viewport) vp.y = float(H) - (vp.y + vp.height);
+        if (g_state.has_scissor) sc.offset.y = std::max(0, H - (sc.offset.y + int32_t(sc.extent.height)));
+    } else {
+        vp.y += vp.height, vp.height = -vp.height;
+    }
     set_dynamic(cb, vp, sc);
 
     trace_skin(indexed, c, vs, fs);
