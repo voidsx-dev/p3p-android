@@ -657,6 +657,10 @@ bool draw(VkCommandBuffer cb, const Targets& t, uint32_t mode, bool indexed, con
     std::copy_n(g_state.streams.begin(), key.stream_count, key.streams);
     std::copy_n(g_state.blend, 8, key.blend);
     key.color = g_state.color, key.mask = g_state.mask, key.depth = g_state.depth, key.polygon = g_state.polygon;
+    {   // P3P experiment: a mirrored viewport mirrors the winding
+        const uint32_t of = origin_flags();
+        if (((of & 1) != 0) != ((of & 4) != 0)) key.polygon.front = key.polygon.front == 0 ? 1 : 0;
+    }
     // NX_HUD_KEEP_ALPHA=1 (P5R by default, games/p5r/game.cpp): draws into the HUD/menu targets (RGBA8, 1280 wide or
     // more, depth tested) with plain alpha blending leave the target's alpha alone. P5R builds alpha on purpose with
     // its own states (alpha-only masks, MIN/MAX/REVERSE_SUBTRACT; the panels' drop shadows), sets it to 0 under the
