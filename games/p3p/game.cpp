@@ -194,7 +194,15 @@ NX_HLE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", hid_nop);
 void game::after_init() {
     log("p3p: after_init");
     setenv("NX_DUMP_SHADER_MISSES", "1", 0);
-      setenv("NX_FLIP_Y", "1", 0);
+      {   // P3P's window origin: Vulkan's own viewport mapping, the final picture turned over (nvn_draw.cpp origin_flags)
+        const std::string flags_path = plat::data_root() + "/live_flags.txt";
+        if (FILE* f = plat::fopen_utf8(flags_path, "rb")) {
+            std::fclose(f);  // already there: left as the player has it
+        } else if (FILE* w = plat::fopen_utf8(flags_path, "wb")) {
+            std::fputs("vp_noflip present_flip\n", w);
+            std::fclose(w);
+        }
+    }
     if (const LoadedModule* m = module_at(find_symbol("nnMain"))) g_main_base = m->base;
     if (const LoadedModule* s = module_at(find_symbol("nnosInitialize"))) g_sdk_base = s->base;
     auto hook = [](const char* sym, uint64_t fallback, void (*fn)(CPU&), uint64_t& orig, const char* what) {
