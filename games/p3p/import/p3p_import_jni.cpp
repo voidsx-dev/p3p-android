@@ -3,6 +3,9 @@
 // <data>/shader_misses) translated to SPIR-V (libspirvharness.so) into <data>/spirv.
 //   Importer.run(nspFd, nspName, keysPath, titleKeysPath, dataDir, workDir, jobs) -> 0, or an error (Importer.error())
 //   Importer.progress() -> {phase, done, total}: 1 opening, 2 collecting, 3 translating, 4 finishing, 5 done
+//
+// Diagnostic: every run also writes <data>/shader_origin.txt, saying where the captured shaders sit inside the game's
+// ExeFS modules (main, sdk), so they can be extracted without having to play first.
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -89,9 +92,102 @@ bool write_file(const std::string& path, const void* p, size_t n) {
     return std::fclose(f) == 0 && ok;
 }
 
+// ---- where the captured shaders sit in the game's modules ----------------------------------------------------------
+
+// The captured code blocks (code_<hash>.bin in <data>/shader_misses).
+std::vector<std::pair<std::string, std::vector<uint8_t>>> captured_codes(const std::string& data_dir) {
+    std::vector<std::pair<std::string, std::vector<uint8_t>>> out;
+    std::vector<std::string> hashes;
+    const std::string src = data_dir + "/shader_misses";
+    if (DIR* d = opendir(src.c_str())) {
+        while (dirent* e = readdir(d)) {
+            const std::string n = e->d_name;
+            if (n.size() == 25 && n.compare(0, 5, "code_") == 0 && n.compare(21, 4, ".bin") == 0)
+                hashes.push_back(n.substr(5, 16));
+        }
+        closedir(d);
+    }
+    std::sort(hashes.begin(), hashes.end());
+    for (const std::string& h : hashes) {
+        std::vector<uint8_t> code;
+        if (read_file(src + "/code_" + h + ".bin", code) && code.size() >= 0x100) out.push_back({h, std::move(code)});
+    }
+    return out;
+}
+
+// A 64-byte window of the program with plenty of non-zero bytes (not padding), to look for.
+bool pick_window(const std::vector<uint8_t>& c, size_t& off) {
+    for (size_t o = 0x40; o + 64 <= c.size(); o += 0x20) {
+        int nonzero = 0;
+        for (size_t k = 0; k < 64; k++) nonzero += c[o + k] != 0;
+        if (nonzero >= 40) return off = o, true;
+    }
+    return false;
+}
+
+void report_origin(const nxi::GameImage& game, const std::string& data_dir) {
+    const auto caps = captured_codes(data_dir);
+    std::string rep = "captured shaders: " + std::to_string(caps.size()) + "\n";
+    char line[512];
+    for (const auto& [name, bytes] : game.exefs()) {
+        if (bytes.size() < 0x100 || std::memcmp(bytes.data(), "NSO0", 4) != 0) continue;
+        std::vector<uint8_t> flat;
+        std::string err;
+        if (!nxi::nso_to_flat_image(bytes, flat, err)) {
+            rep += name + ": cannot be flattened: " + err + "\n";
+            continue;
+        }
+        size_t code_magic = 0, ctrl_magic = 0;
+        for (size_t o = 0; o + 0x30 <= flat.size(); o += 4) {
+            const uint32_t v = le32(flat.data() + o);
+            if (v == 0x98761234u) ctrl_magic++;
+            if (v == 0x12345678u) {
+                bool zeros = true;
+                for (size_t k = 4; k < 0x30 && zeros; k++) zeros = flat[o + k] == 0;
+                if (zeros) code_magic++;
+            }
+        }
+        std::snprintf(line, sizeof line, "module %s: %zu bytes flat, %zu code blocks (magic 12345678 + zeros), %zu control sections (98761234)\n",
+                      name.c_str(), flat.size(), code_magic, ctrl_magic);
+        rep += line;
+        size_t found = 0, full = 0;
+        for (const auto& [hash, code] : caps) {
+            size_t off = 0;
+            if (!pick_window(code, off)) {
+                rep += "  " + hash + ": no usable window\n";
+                continue;
+            }
+            auto it = std::search(flat.begin(), flat.end(), code.begin() + off, code.begin() + off + 64);
+            if (it == flat.end()) {
+                if (found < 1000) rep += "  " + hash + " (" + std::to_string(code.size()) + " bytes): not in " + name + "\n";
+                continue;
+            }
+            found++;
+            const size_t pos = size_t(it - flat.begin());
+            const bool whole = pos >= off && pos - off + code.size() <= flat.size() &&
+                               std::memcmp(flat.data() + pos - off, code.data(), code.size()) == 0;
+            full += whole;
+            std::string before;
+            if (pos >= off + 16)
+                for (size_t k = 0; k < 16; k++) {
+                    char b[4];
+                    std::snprintf(b, sizeof b, "%02x", flat[pos - off - 16 + k]);
+                    before += b;
+                }
+            std::snprintf(line, sizeof line, "  %s (%zu bytes): IN %s at %zx (block start %zx), whole block %s, 16 bytes before: %s\n",
+                          hash.c_str(), code.size(), name.c_str(), pos, pos >= off ? pos - off : pos, whole ? "matches" : "differs",
+                          before.c_str());
+            rep += line;
+        }
+        std::snprintf(line, sizeof line, "module %s: %zu of %zu found, %zu whole\n", name.c_str(), found, caps.size(), full);
+        rep += line;
+    }
+    write_file(data_dir + "/shader_origin.txt", rep.data(), rep.size());
+}
+
 // The shaders the game handed to NVN that had no translation (the runtime saves each one as code_<hash>.bin and
 // ctrl_<hash>.bin in <data>/shader_misses, NX_DUMP_SHADER_MISSES): copied into <out>/misses with the manifest.tsv the
-// translator reads (the layout of games/p5r's extraction). Returns how many.
+// translator reads. Returns how many.
 long prepare_captured(const std::string& data_dir, const std::string& out_dir) {
     const std::string src = data_dir + "/shader_misses";
     std::vector<std::string> hashes;
@@ -160,9 +256,15 @@ int run(int nsp_fd, const std::string& nsp_name, const std::string& keys, const 
     if (kBuildId[0] && std::strcmp(id, kBuildId) != 0)
         return fail(std::string("this is not the expected version (build ") + id + ")");
 
+    // diagnostic: where do the shaders the game uses sit inside its own modules?
+    mkdir(data_dir.c_str(), 0755);
+    try {
+        report_origin(*game, data_dir);
+    } catch (...) {
+    }
+
     // 2. the shaders the game has asked for so far
     g_phase = 2;
-    mkdir(data_dir.c_str(), 0755);
     remove_tree(work_dir);
     mkdir(work_dir.c_str(), 0700);
     const std::string extracted = work_dir + "/shaders";
