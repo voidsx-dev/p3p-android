@@ -273,9 +273,13 @@ endif()
 
 # P3P's import on the phone (games/p3p/import), as P5R's above.
 if(ANDROID AND NX_GAME STREQUAL "p3p")
-    add_library(p3pimport SHARED games/p3p/import/p3p_import_jni.cpp games/p3p/import/p3p_shaders.cpp
+    add_library(p3pimport SHARED games/p3p/import/p3p_import_jni.cpp
+        runtime/src/nvn/nvn_local_shader.cpp runtime/src/nvn/nvn_shaders.cpp runtime/src/nvn/nvn_spirv_reflect.cpp
         "${NX_IMPORTER_DIR}/nximport.cpp" "${NX_IMPORTER_DIR}/nxcrypto.cpp")
-    target_include_directories(p3pimport PRIVATE "${NX_IMPORTER_DIR}" games/p3p/import)
+    target_include_directories(p3pimport PRIVATE "${NX_IMPORTER_DIR}" games/p3p/import runtime/src/nvn)
+    target_compile_definitions(p3pimport PRIVATE NX_SHADERS_STANDALONE)
+    target_sources(${NX_GAME} PRIVATE runtime/src/nvn/nvn_local_shader.cpp)
+    target_compile_definitions(${NX_GAME} PRIVATE NX_LOCAL_SHADERS)
     target_compile_options(p3pimport PRIVATE -O2 -fvisibility=hidden -march=armv8-a+crypto)
     target_link_libraries(p3pimport PRIVATE log dl)
     target_link_options(p3pimport PRIVATE -Wl,-z,max-page-size=16384)
