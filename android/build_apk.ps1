@@ -42,7 +42,13 @@ if ($Nce -and ($Game -eq "p5r" -or $Game -eq "p3p")) {
 cmake --build $build --target @targets
 if ($LASTEXITCODE) { throw "native build failed" }
 
-Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
+$outputFull = [System.IO.Path]::GetFullPath($out)
+$privateFull = [System.IO.Path]::GetFullPath((Join-Path $root "private"))
+if (-not $outputFull.StartsWith($privateFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "unexpected APK output directory: $outputFull"
+}
+if ((Split-Path $outputFull -Leaf) -notin @("apk", "apk_nce")) { throw "unexpected APK output name" }
+Remove-Item -LiteralPath $outputFull -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force "$out\lib\arm64-v8a", "$out\res" | Out-Null
 & "$ndk\toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-strip.exe" --strip-unneeded -o "$out\lib\arm64-v8a\lib$Game.so" "$build\lib$Game.so"
 foreach ($lib in $extraLibs) {
@@ -100,6 +106,17 @@ if (Test-Path $java) {
     & "$bt\d8.bat" --release --min-api 30 --lib $jar --output "$out\dex" @classes
     if ($LASTEXITCODE) { throw "d8 failed" }
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($apk, "$out\dex\classes.dex", "classes.dex", "Optimal") | Out-Null
+}
+if ($Game -eq "p3p" -and $Nce) {
+    $licenseRoot = "$root\private\build\spirv_harness_android\licenses"
+    foreach ($name in @("Ryubing-MIT.txt", "dotnet-LICENSE.txt", "dotnet-THIRD-PARTY-NOTICES.txt")) {
+        $license = Join-Path $licenseRoot $name
+        if (-not (Test-Path -LiteralPath $license -PathType Leaf)) { throw "missing compiler license: $license" }
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($apk, $license, "assets/licenses/$name", "Optimal") | Out-Null
+    }
+    if (@($apk.Entries | Where-Object { $_.FullName.EndsWith(".spv") -or $_.FullName.StartsWith("assets/spirv/") }).Count) {
+        throw "P3P must generate game shaders locally; bundled SPIR-V is not allowed"
+    }
 }
 $apk.Dispose()
 
