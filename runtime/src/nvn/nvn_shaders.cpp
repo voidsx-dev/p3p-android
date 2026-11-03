@@ -7,6 +7,9 @@
 // neither the names nor the numbers carry is the c[0] offset a storage buffer's address was loaded from; that comes
 // from the harness's results.tsv (apply_harness).
 #include "nvn_shaders.h"
+#ifdef NX_LOCAL_SHADERS
+#include "nvn_local_shader.h"
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -213,6 +216,7 @@ bool read_whole(const std::string& path, std::string& out) {
     if (!f) return false;
     plat::fseek64(f, 0, SEEK_END);
     int64_t size = plat::ftell64(f);
+    if (size < 0 || size > 64 * 1024 * 1024) { std::fclose(f); return false; }
     out.resize(size > 0 ? size_t(size) : 0);
     bool ok = size >= 0 && plat::read_at(f, 0, out.data(), out.size()) == out.size();
     std::fclose(f);
@@ -264,25 +268,57 @@ const ShaderInfo* shader_for(uint64_t code_host, uint64_t control) {
         else
             log("nvn: no %sresults.tsv: storage buffers of translated shaders cannot be bound", dir.c_str());
     }
-    std::unique_ptr<ShaderInfo>& slot = k.by_hash[hash];
-    std::string bytes;
-    if (!read_whole(dir + hash + ".spv", bytes) || bytes.size() % 4 || bytes.empty()) {
-        log("nvn: shader %s (code %#x bytes, control %llx): no %s%s.spv", hash.c_str(), c.code_size,
-            (unsigned long long)control, dir.c_str(), hash.c_str());
-        if (std::getenv("NX_DUMP_SHADER_MISSES")) {  // for translating shaders the offline inventory missed
-            std::string out = plat::data_root() + "/shader_misses/";
-            plat::make_dirs(out);
-            if (FILE* f = plat::fopen_utf8(out + "code_" + hash + ".bin", "wb")) {
-                std::fwrite(code, 1, c.code_size, f);
-                std::fclose(f);
+std::unique_ptr<ShaderInfo>& slot = k.by_hash[hash];
+std::string bytes;
+#ifdef NX_LOCAL_SHADERS
+    // A first-use shader may not exist in ExeFS. Compile the exact code and control
+    // supplied by NVN, with the same translator and bindings as preparation.
+    if (!local::valid(dir, hash)) {
+        std::string generated_hash, error;
+        if (!local::compile(dir, code, c.code_size, ctrl, 0x880, generated_hash, error)) {
+            log("nvn: local shader %s failed: %s", hash.c_str(), error.c_str());
+            if (FILE* f = plat::fopen_utf8(dir + "failed.txt", "wb")) {
+                std::fprintf(f, "Shader %s: %s\n", hash.c_str(), error.c_str()); std::fclose(f);
             }
-            if (FILE* f = plat::fopen_utf8(out + "ctrl_" + hash + ".bin", "wb")) {
-                std::fwrite(ctrl, 1, 0x880, f);
-                std::fclose(f);
-            }
+            return nullptr;
         }
-        return nullptr;
+        log("nvn: generated local shader %s", hash.c_str());
     }
+    std::string metadata;
+    if (read_whole(dir + hash + ".resources", metadata)) k.resources[hash] = std::move(metadata);
+#endif
+
+if (!read_whole(dir + hash + ".spv", bytes) ||
+    bytes.size() % 4 || bytes.empty()) {
+
+    log("nvn: shader %s (code %#x bytes, control %llx): no %s%s.spv",
+        hash.c_str(), c.code_size,
+        (unsigned long long)control, dir.c_str(), hash.c_str());
+
+    static size_t dumped_misses = 0;
+
+    if (std::getenv("NX_DUMP_SHADER_MISSES") ||
+        dumped_misses < 32) {
+
+        if (dumped_misses < 32)
+            ++dumped_misses;
+
+        std::string out = plat::data_root() + "/shader_misses/";
+        plat::make_dirs(out);
+
+        if (FILE* f = plat::fopen_utf8(out + "code_" + hash + ".bin", "wb")) {
+            std::fwrite(code, 1, c.code_size, f);
+            std::fclose(f);
+        }
+
+        if (FILE* f = plat::fopen_utf8(out + "ctrl_" + hash + ".bin", "wb")) {
+            std::fwrite(ctrl, 1, 0x880, f);
+            std::fclose(f);
+        }
+    }
+
+    return nullptr;
+}
     std::vector<uint32_t> words(bytes.size() / 4);
     std::memcpy(words.data(), bytes.data(), bytes.size());
     auto res = k.resources.find(hash);
@@ -291,6 +327,11 @@ const ShaderInfo* shader_for(uint64_t code_host, uint64_t control) {
     const std::string* record = res == k.resources.end() ? nullptr : &res->second;
     if (!make_shader_info(code, ctrl, std::move(words), record, *info, &error)) {
         log("nvn: shader %s: %s", hash.c_str(), error.c_str());
+#ifdef NX_LOCAL_SHADERS
+        if (FILE* f = plat::fopen_utf8(dir + "failed.txt", "wb")) {
+            std::fprintf(f, "Shader %s reflection: %s\n", hash.c_str(), error.c_str()); std::fclose(f);
+        }
+#endif
         return nullptr;
     }
     if (g_trace)
