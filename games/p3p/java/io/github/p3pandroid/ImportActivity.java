@@ -53,7 +53,7 @@ public class ImportActivity extends Activity {
         root.addView(title);
         TextView note = new TextView(this);
         note.setText(t("Solo hace falta una vez. Deja la app abierta hasta que termine (unos minutos).",
-                "This is needed only once. Keep the app open until it ends (a few minutes)."));
+                "Keep the app open during preparation. Additional shaders are generated on first use and may briefly pause gameplay."));
         note.setTextColor(Color.rgb(200, 200, 200));
         note.setTextSize(15);
         note.setPadding(0, dp(8), 0, dp(20));
@@ -137,10 +137,10 @@ public class ImportActivity extends Activity {
                 int value = phase <= 1 ? 20 : phase == 2 ? 50 + (int) (200 * share) : phase == 3 ? 250 + (int) (730 * share) : 990;
                 bar.setProgress(value);
                 if (phase == 2)
-                    status.setText(Lang.f("Extrayendo los shaders del juego (%d de %d)…", "Extracting the game's shaders (%d of %d)…",
+                    status.setText(Lang.f("Extrayendo los shaders del juego (%d de %d)…", "Scanning game modules (%d of %d)…",
                             done, total));
                 else if (phase == 3)
-                    status.setText(Lang.f("Traduciendo los shaders (%d de %d)…", "Translating the shaders (%d of %d)…", done,
+                    status.setText(Lang.f("Traduciendo los shaders (%d de %d)…", "Generating local shaders (module %d of %d)…", done,
                             total));
                 else if (phase == 4)
                     status.setText(t("Terminando…", "Finishing…"));

@@ -128,7 +128,7 @@ public class Launcher extends Activity {
         File note = new File(dataDir(), "spirv/import.txt");
         if (!note.canRead()) return false;
         try (BufferedReader r = new BufferedReader(new FileReader(note))) {
-            return gameName().equals(r.readLine());
+            return gameName().equals(r.readLine()) && PreparationFiles.ready(new File(dataDir(), "spirv"));
         } catch (Exception e) {
             return false;
         }
@@ -537,7 +537,9 @@ public class Launcher extends Activity {
             play.setText(t("Elegir prod.keys", "Choose prod.keys"));
         } else if (gameUri() != null && !prepared()) {
             status.setText(Lang.f("Juego: %s. Falta prepararlo: solo una vez, unos minutos.",
-                    "Game: %s. It needs preparing: once, a few minutes.", gameName()));
+                    "Game: %s. Prepare the local shader cache to continue.", gameName()) +
+                    (PreparationFiles.failure(new File(dataDir(), "spirv")).isEmpty() ? "" :
+                     "\nShader generation failed:\n" + PreparationFiles.failure(new File(dataDir(), "spirv"))));
             play.setText(t("Preparar el juego", "Prepare the game"));
         } else if (gameUri() != null) {
             status.setText(Lang.f("Juego listo: %s", "Game ready: %s", gameName()));
