@@ -10,21 +10,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch the Ryubing source
+      - name: Test Maxwell block discovery
         run: |
-          mkdir -p private/third_party/ryubing
-          curl -L -o private/third_party/ryubing.tar.gz https://codeberg.org/Software_arch/Ryubing/archive/a82350bb77.tar.gz
-          tar -xzf private/third_party/ryubing.tar.gz -C private/third_party/ryubing --strip-components=1
+          c++ -std=c++17 -Wall -Wextra -Werror -I games/p3p/import tests/p3p_maxwell_test.cpp -o "$RUNNER_TEMP/p3p-maxwell-test"
+          "$RUNNER_TEMP/p3p-maxwell-test"
 
-      - name: Build libspirvharness.so
+      - name: Build and test the P3P local shader compiler
         run: |
           docker run --rm -v "$PWD:/src" -w /src mcr.microsoft.com/dotnet/sdk:10.0 \
-            sh games/p5r/tools/build_harness_android.sh
+            bash games/p3p/tools/build_harness_android.sh
 
       - uses: actions/upload-artifact@v4
         with:
           name: libspirvharness
-          path: private/build/spirv_harness_android/libspirvharness.so
+          path: |
+            private/build/spirv_harness_android/libspirvharness.so
+            private/build/spirv_harness_android/licenses/*.txt
           if-no-files-found: error
 
   apk:
@@ -47,6 +48,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Test local cache readiness
+        shell: pwsh
+        run: |
+          $classes = Join-Path $env:RUNNER_TEMP "p3p-cache-tests"
+          New-Item -ItemType Directory -Force $classes | Out-Null
+          javac -encoding UTF-8 --release 8 -d $classes games/p3p/java/io/github/p3pandroid/PreparationFiles.java tests/P3pPreparationTest.java
+          if ($LASTEXITCODE) { throw "cache checks did not compile" }
+          java -cp $classes io.github.p3pandroid.P3pPreparationTest
+          if ($LASTEXITCODE) { throw "local cache checks failed" }
 
       - name: cmake and ninja
         run: pip install cmake ninja
