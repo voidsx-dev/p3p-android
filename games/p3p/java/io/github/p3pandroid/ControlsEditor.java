@@ -62,7 +62,7 @@ public class ControlsEditor extends Activity {
         parse(config.get("NX_TOUCH_LAYOUT"));
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(20, 4, 6));
+        root.setBackgroundColor(Color.rgb(5, 12, 30));
         view = new EditorView(this);
         root.addView(view, new FrameLayout.LayoutParams(-1, -1));
 
@@ -81,7 +81,7 @@ public class ControlsEditor extends Activity {
         bar.setPadding(0, dp(12), 0, 0);
         Button restore = button(t("Restablecer", "Reset"), Color.rgb(70, 70, 70));
         Button cancel = button(t("Cancelar", "Cancel"), Color.rgb(70, 70, 70));
-        Button save = button(t("Guardar", "Save"), Color.rgb(230, 0, 18));
+        Button save = button(t("Guardar", "Save"), Color.rgb(40, 120, 230));
         restore.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

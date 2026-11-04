@@ -261,7 +261,7 @@ public class Launcher extends Activity {
 
     // The build ID the port is made for (Persona 3 Portable 1.0.0, the base game): the start of exefs/main's module ID
     // (NSO header +0x40). The native build refuses another (runtime main.cpp); say so here instead of closing.
-    static final String BUILD_ID = "708BCACA873EA32B";
+    static final String BUILD_ID = "663052C2C7E8C357";
 
     // Null when exefs/main is missing or the right version, else its build ID.
     String wrongBuild() {
@@ -291,22 +291,17 @@ public class Launcher extends Activity {
                 new String[] {"Automatic (device language)", "English", "Español", "Français", "Deutsch", "Italiano",
                         "日本語", "한국어", "简体中文", "繁體中文"}, 0));
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
-                new String[] {"360p", "480p", "720p", "1080p"},
-                new String[] {"360p", "480p", "720p", "1080p"},
-                new String[] {"360p", "480p", "720p", "1080p"}, 2));
+                new String[] {"480p", "720p", "1080p"},
+                new String[] {"480p", "720p", "1080p"},
+                new String[] {"480p", "720p", "1080p"}, 1));
         options.add(new Option("NX_STRETCH", "Pantalla completa (estirar)", "Fullscreen (stretch)",
                 new String[] {"0", "1"},
                 new String[] {"Desactivada", "Activada"},
                 new String[] {"Off", "On"}, 0));
-        options.add(new Option("NX_HUD_1080", "Interfaz", "Interface", new String[] {"0", "1"},
-                new String[] {"720p (más rápida)", "1080p (textos nítidos)"},
-                new String[] {"720p (faster)", "1080p (sharp text)"}, 0));
-        options.add(new Option("GRAPHICS", "Gráficos", "Graphics", new String[] {"low", "medium", "high"},
-                new String[] {"Bajos", "Medios", "Altos"}, new String[] {"Low", "Medium", "High"}, 0));
+        options.add(new Option("GRAPHICS", "Calidad de texturas", "Texture quality", new String[] {"low", "medium", "high"},
+                new String[] {"Bajas", "Medias", "Altas"}, new String[] {"Low", "Medium", "High"}, 2));
         options.add(new Option("NX_FPS_CAP", "Fotogramas por segundo", "Frame rate", new String[] {"30", "60"},
                 new String[] {"30 fps", "60 fps (experimental)"}, new String[] {"30 fps", "60 fps (experimental)"}, 0));
-        options.add(new Option("NX_SHADOWS", "Sombras", "Shadows", new String[] {"0", "1"},
-                new String[] {"Desactivadas", "Activadas"}, new String[] {"Off", "On"}, 0));
         options.add(new Option("NX_SHOW_FPS", "Contador de FPS", "FPS counter", new String[] {"0", "1"},
                 new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
@@ -329,13 +324,13 @@ public class Launcher extends Activity {
     void build() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(20, 4, 6));
+        root.setBackgroundColor(Color.rgb(5, 12, 30));
         int pad = dp(24);
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("PERSONA 5 ROYAL");
-        title.setTextColor(Color.rgb(230, 0, 18));
+        title.setText("PERSONA 3 PORTABLE");
+        title.setTextColor(Color.rgb(40, 120, 230));
         title.setTextSize(30);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
@@ -346,6 +341,7 @@ public class Launcher extends Activity {
         status.setPadding(0, dp(6), 0, dp(14));
         root.addView(status);
 
+        header(root, t("Archivos del juego", "Game files"));
         addRow(root, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
                 new View.OnClickListener() {
                     @Override
@@ -359,14 +355,10 @@ public class Launcher extends Activity {
                 pick(PICK_KEYS, "*/*", true);
             }
         });
-        addRow(root, t("Icono", "Icon"), t("Elegir imagen", "Choose a picture"), new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                pick(PICK_ICON, "image/*", false);
-            }
-        });
 
         for (final Option o : options) {
+            String[] section = sectionOf(o.key);
+            if (section != null) header(root, t(section[0], section[1]));
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -464,7 +456,7 @@ public class Launcher extends Activity {
         play = new Button(this);
         play.setTextSize(20);
         play.setAllCaps(false);
-        play.setBackgroundColor(Color.rgb(230, 0, 18));
+        play.setBackgroundColor(Color.rgb(40, 120, 230));
         play.setTextColor(Color.WHITE);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64));
         lp.topMargin = dp(18);
@@ -707,12 +699,7 @@ public class Launcher extends Activity {
         load();
         for (Option o : options) config.put(o.key, o.values[o.pick]);
         final String res = config.get("RESOLUTION");
-        if ("360p".equals(res)) {
-            config.put("NX_HANDHELD", "1");
-            config.put("resolution", "640x360");
-            config.put("NX_RENDER_RES", "640x360");
-            config.put("NX_RES", "360p");
-        } else if ("480p".equals(res)) {
+        if ("480p".equals(res)) {
             config.put("NX_HANDHELD", "1");
             config.put("resolution", "854x480");
             config.put("NX_RENDER_RES", "854x480");
@@ -728,11 +715,29 @@ public class Launcher extends Activity {
             config.put("NX_RENDER_RES", "1280x720");
             config.put("NX_RES", "720p");
         }
-        for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS"}) config.remove(k);
+        for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS"}) config.remove(k);
         final String preset = config.get("GRAPHICS");
         if ("low".equals(preset)) config.put("NX_LOD_BIAS", "1");
         else if ("medium".equals(preset)) config.put("NX_LOD_BIAS", "0.5");
         writeConfig(new File(dataDir(), "config.txt"), config);
+    }
+
+    // Section titles of the options screen: the first option of each section carries one.
+    String[] sectionOf(String key) {
+        if ("language".equals(key)) return new String[] {"Idioma", "Language"};
+        if ("RESOLUTION".equals(key)) return new String[] {"Imagen", "Display"};
+        if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
+        return null;
+    }
+
+    void header(LinearLayout root, String text) {
+        TextView h = new TextView(this);
+        h.setText(text);
+        h.setTextColor(Color.rgb(110, 175, 255));
+        h.setTextSize(14);
+        h.setTypeface(Typeface.DEFAULT_BOLD);
+        h.setPadding(0, dp(18), 0, dp(4));
+        root.addView(h);
     }
 
     int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }

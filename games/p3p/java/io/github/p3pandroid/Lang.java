@@ -55,6 +55,13 @@ final class Lang {
 
     static {
         // Options
+        put("Game files", "Fichiers du jeu", "Spieldateien", "File del gioco", "Arquivos do jogo", "ゲームファイル", "게임 파일",
+                "游戏文件", "遊戲檔案");
+        put("Language", "Langue", "Sprache", "Lingua", "Idioma", "言語", "언어", "语言", "語言");
+        put("Display", "Affichage", "Anzeige", "Schermo", "Imagem", "表示", "화면", "显示", "顯示");
+        put("Controls", "Commandes", "Steuerung", "Controlli", "Controles", "操作", "조작", "控制", "控制");
+        put("Texture quality", "Qualité des textures", "Texturqualität", "Qualità delle texture",
+                "Qualidade das texturas", "テクスチャ品質", "텍스처 품질", "纹理质量", "紋理品質");
         put("Text and subtitle language", "Langue des textes et sous-titres", "Sprache für Texte und Untertitel",
                 "Lingua di testi e sottotitoli", "Idioma dos textos e legendas", "テキストと字幕の言語", "텍스트 및 자막 언어",
                 "文本和字幕语言", "文字與字幕語言");

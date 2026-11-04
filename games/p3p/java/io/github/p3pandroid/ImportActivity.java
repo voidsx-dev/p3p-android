@@ -42,12 +42,12 @@ public class ImportActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(20, 4, 6));
+        root.setBackgroundColor(Color.rgb(5, 12, 30));
         int pad = dp(32);
         root.setPadding(pad, pad, pad, pad);
         TextView title = new TextView(this);
         title.setText(t("Preparando el juego", "Preparing the game"));
-        title.setTextColor(Color.rgb(230, 0, 18));
+        title.setTextColor(Color.rgb(40, 120, 230));
         title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
