@@ -444,8 +444,18 @@ bool present_pass_record(VkCommandBuffer cb, GpuImage& src, const int32_t* crop,
     if (stretch) {
         p.box[0] = 0.0f, p.box[1] = 0.0f, p.box[2] = 1.0f, p.box[3] = 1.0f;
     } else {
-        float scale = std::min(tw / cw, th / ch);
-        bw = cw * scale / tw, bh = ch * scale / th;
+        // P3P's display is always 16:9. Fit that aspect ratio into the upright swapchain
+        // instead of deriving the displayed ratio from the render target/crop (which may
+        // have a non-16:9 extent and make the image look stretched when NX_STRETCH=0).
+        constexpr float game_aspect = 16.0f / 9.0f;
+        const float screen_aspect = tw / th;
+        if (screen_aspect > game_aspect) {
+            bw = game_aspect / screen_aspect;
+            bh = 1.0f;
+        } else {
+            bw = 1.0f;
+            bh = screen_aspect / game_aspect;
+        }
         p.box[0] = (1 - bw) / 2, p.box[1] = (1 - bh) / 2, p.box[2] = bw, p.box[3] = bh;
     }
     // The touch controls (platform_android_input.cpp), in upright uv; none elsewhere.
