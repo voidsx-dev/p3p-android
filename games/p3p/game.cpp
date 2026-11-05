@@ -213,7 +213,10 @@ void game::after_init() {
     };
     hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_i", 0x8d9f0, abort_hook, g_abort_orig, "AbortImpl");
     hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_iS3_z", 0x8d980, abort_msg_hook, g_abort_msg_orig, "AbortImpl(msg)");
-    hook("_ZN2nn2sf4hipc15SendSyncRequestENS_3svc6HandleEPvm", 0x13f290, send_hook, g_send_orig, "SendSyncRequest");
+    // IPC text tracing is diagnostic-only. Keep it off in normal play to avoid inspecting and allocating strings
+    // for every guest IPC request; set P3P_TRACE_IPC=1 in config.txt when troubleshooting.
+    if (const char* trace = std::getenv("P3P_TRACE_IPC"); trace && trace[0] == '1')
+        hook("_ZN2nn2sf4hipc15SendSyncRequestENS_3svc6HandleEPvm", 0x13f290, send_hook, g_send_orig, "SendSyncRequest");
     if (g_main_base) scan_plt();
 }
 void game::renderer_start() { log("p3p: renderer_start"); }
