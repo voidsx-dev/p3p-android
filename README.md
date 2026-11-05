@@ -1,86 +1,75 @@
-Persona 3 Portable Android
+# Persona 3 Portable Android (P3P)
 
-An unofficial Android port project for Persona 3 Portable, based on the native Android architecture of the original P5R Android project.
+**Version:** 0.1.0  
+**Status:** Experimental — Early Development
 
-The goal is to adapt and improve the existing runtime and Android implementation to bring Persona 3 Portable to Android devices.
+An Android port of Persona 3 Portable, focused on bringing the game to mobile devices with customizable graphics, performance settings, touchscreen controls, and save management.
 
-«Status: Experimental / Work in Progress»
+## Features
 
-Overview
+- Multiple resolution options: 480p, 720p, and 1080p.
+- Stretch Screen support.
+- Graphics quality settings: Low, Medium, and High.
+- FPS options: 30 and 60 FPS.
+- FPS counter.
+- Customizable touchscreen controls.
+- Adjustable touch control size and opacity.
+- Save import and export.
+- Android input support.
+- Game and shader preparation.
 
-P3P Android is a community-driven project focused on adapting the native Android runtime for Persona 3 Portable.
+## Requirements
 
-The project builds upon the foundation of the original P5R Android repository, with game-specific modifications, runtime adjustments, and Android-side improvements.
+- Android device with ARM64 support.
+- Android 11 or newer recommended.
+- Vulkan 1.1 support.
+- Your own legally obtained copy of Persona 3 Portable (version 1.0.0).
+- Required game keys and files.
 
-This is not a traditional Nintendo Switch emulator. It uses a native execution approach targeting ARM64 Android devices.
+## Installation
 
-Features
+1. Download the latest APK from the GitHub Releases page when available.
+2. Install the APK on your Android device.
+3. Prepare your own game files.
+4. Follow the in-app instructions to import the game.
 
-The project currently includes:
+Development builds may also be available through GitHub Actions artifacts.
 
-- Stretch Screen – Screen scaling adjustments.
-- FPS options – Frame-rate related improvements and configuration.
-- Save System – Android save handling.
-- Save Fix – Improvements to save functionality.
-- Native Android Runtime – Adapted runtime components.
-- Touch and Controller Support – Android input integration inherited and adapted from the project foundation.
+## Building
 
-Features and compatibility are still being developed and tested.
+The project includes Android build scripts:
 
-Project Structure
+- `android/build_apk.sh`
+- `android/build_apk.ps1`
 
-Directory| Description
-"android/"| Android application and build scripts
-"games/p3p/"| Persona 3 Portable specific implementation
-"runtime/"| Native runtime components
-"recomp/"| Recompilation-related components
-"tools/"| Development and build utilities
-"docs/"| Project documentation
-"tests/"| Tests and validation
+You can also use GitHub Actions to build the APK.
 
-Building
+## Project Structure
 
-Android builds are handled through GitHub Actions.
+- `android/` — Android application and build scripts.
+- `games/p3p/` — Persona 3 Portable game integration.
+- `runtime/` — Game runtime and platform support.
+- `tools/` — Build and compatibility tools.
 
-1. Open the repository's Actions tab.
-2. Select the available Android build workflow.
-3. Run the workflow on the desired branch.
-4. Download the generated build artifact if the workflow provides one.
+## Roadmap
 
-Build availability and compatibility may vary as development progresses.
+- Further performance optimizations without sacrificing graphical quality.
+- Improved Android compatibility.
+- Save system improvements.
+- Additional customization options.
+- Mod Manager support planned for a future release.
 
-Compatibility
+## Credits
 
-The intended target is ARM64 Android devices.
+- Original game: ATLUS / SEGA.
+- Android port development inspired by the P5R Android project.
 
-Compatibility, performance, graphics behavior, and Android version support are still being evaluated.
+## Disclaimer
 
-A successful build does not guarantee that every device will run the application correctly.
+This is an unofficial fan-made project. It is not affiliated with, endorsed by, or associated with ATLUS or SEGA.
 
-Game Files
+This project does not distribute copyrighted game files, assets, or keys. Users must provide their own legally obtained game files.
 
-This repository does not distribute copyrighted game files or proprietary game assets.
+## License
 
-Users must provide their own legally obtained copy of the game and are responsible for complying with applicable laws.
-
-Credits
-
-- "Original P5R Android Project" (https://github.com/Brandon04Gonzalez/p5r-android) – Original project foundation and architecture.
-- "ATLUS" (https://www.atlus.com/) – Creator of Persona 3 Portable.
-- SEGA – Publisher of Persona 3 Portable.
-
-Special thanks to the original project's contributors and everyone helping with testing and development.
-
-Disclaimer
-
-This is an unofficial, community-made project.
-
-It is not affiliated with, endorsed by, or associated with ATLUS, SEGA, or Nintendo.
-
-Persona 3 Portable and all related trademarks and intellectual property belong to their respective owners.
-
-License
-
-This project is distributed under the MIT License, subject to the applicable licenses and notices of third-party components.
-
-See "LICENSE" (LICENSE) and "THIRD_PARTY_NOTICES.md" (THIRD_PARTY_NOTICES.md) for details.
+This project uses the MIT License. See `LICENSE` and `THIRD_PARTY_NOTICES` for details.
