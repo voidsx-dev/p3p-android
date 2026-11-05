@@ -48,8 +48,8 @@ import java.util.Map;
  * The home screen in front of the game (a NativeActivity, libp3p.so): checks for the player's data in Internal
  * storage/Persona 3 Portable (asking for all-files access), shows the options and writes them to that folder's
  * config.txt, whose NX_* lines the runtime turns into its switches:
- *   game text   the language of the game's texts and subtitles (language=auto, default: the device's, English when
- *               the game lacks it; or en-US, es, fr, de, it, ja, ko, zh-Hans, zh-Hant). The voices are the game's own
+ *   game text   the language of the game's texts and subtitles: always language=auto (the device's, English when
+ *               the game lacks it), written by save(), with no option on screen. The voices are the game's own
  *               option.
  *   resolution  720p (NX_HANDHELD=1, default) or 1080p (NX_HANDHELD=0)
  *   interface   at 720p (NX_HUD_1080=0, default: faster) or, in 720p, drawn at 1080p (NX_HUD_1080=1: sharper text)
@@ -283,13 +283,6 @@ public class Launcher extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        // The game's texts and subtitles (runtime language.h): its own language names, as a console lists them.
-        options.add(new Option("language", "Idioma de textos y subtítulos", "Text and subtitle language",
-                new String[] {"auto", "en-US", "es", "fr", "de", "it", "ja", "ko", "zh-Hans", "zh-Hant"},
-                new String[] {"Automático (idioma del dispositivo)", "English", "Español", "Français", "Deutsch",
-                        "Italiano", "日本語", "한국어", "简体中文", "繁體中文"},
-                new String[] {"Automatic (device language)", "English", "Español", "Français", "Deutsch", "Italiano",
-                        "日本語", "한국어", "简体中文", "繁體中文"}, 0));
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
                 new String[] {"480p", "720p", "1080p"},
                 new String[] {"480p", "720p", "1080p"},
@@ -301,7 +294,7 @@ public class Launcher extends Activity {
         options.add(new Option("GRAPHICS", "Calidad de texturas", "Texture quality", new String[] {"low", "medium", "high"},
                 new String[] {"Bajas", "Medias", "Altas"}, new String[] {"Low", "Medium", "High"}, 2));
         options.add(new Option("NX_FPS_CAP", "Fotogramas por segundo", "Frame rate", new String[] {"30", "60"},
-                new String[] {"30 fps", "60 fps (experimental)"}, new String[] {"30 fps", "60 fps (experimental)"}, 0));
+                new String[] {"30 fps", "60 fps"}, new String[] {"30 fps", "60 fps"}, 0));
         options.add(new Option("NX_SHOW_FPS", "Contador de FPS", "FPS counter", new String[] {"0", "1"},
                 new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
@@ -695,6 +688,8 @@ public class Launcher extends Activity {
         if (!dataDir().isDirectory()) return;
         load();
         for (Option o : options) config.put(o.key, o.values[o.pick]);
+        // Game text and subtitles always follow the device's language (no option on screen).
+        config.put("language", "auto");
         final String res = config.get("RESOLUTION");
         if ("480p".equals(res)) {
             config.put("NX_HANDHELD", "1");
@@ -721,7 +716,6 @@ public class Launcher extends Activity {
 
     // Section titles of the options screen: the first option of each section carries one.
     String[] sectionOf(String key) {
-        if ("language".equals(key)) return new String[] {"Idioma", "Language"};
         if ("RESOLUTION".equals(key)) return new String[] {"Imagen", "Display"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
         return null;
