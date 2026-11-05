@@ -5,7 +5,7 @@
 #   -TestPackage  installs next to the normal build: package <package>.nce, label "<label> (NCE)"
 #   -Release      the public build (CMake NX_RELEASE: no nx.log file, no file-triggered diagnostics; logcat only);
 #                 without it the build directory keeps the setting it has
-param([string]$Game = "p5r", [switch]$Install, [switch]$Nce, [switch]$TestPackage, [switch]$Release)
+param([string]$Game = "p3p", [switch]$Install, [switch]$Nce, [switch]$TestPackage, [switch]$Release)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 # The SDK: ANDROID_HOME, else C:\Android\sdk, else Android Studio's default (%LOCALAPPDATA%\Android\Sdk).
@@ -27,14 +27,13 @@ if (-not (Test-Path "$build\build.ninja")) {
         -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_static "-DNX_GAME=$Game" "-DNX_NCE=$nceFlag"
 }
 if ($Release) { cmake -B $build -DNX_RELEASE=ON | Out-Null }
-# Libraries packed with lib<game>.so: the P5R native build prepares the game on the phone (libp5rimport.so) with the
-# shader translator (libspirvharness.so, built in Docker by games/p5r/tools/build_harness_android.sh).
+# P3P's on-device preparation library and shader translator are built from games/p3p/import and games/p3p/tools.
 $extraLibs = @()
 $targets = @($Game)
-if ($Nce -and ($Game -eq "p5r" -or $Game -eq "p3p")) {
+if ($Nce -and $Game -eq "p3p") {
     $harness = "$root\private\build\spirv_harness_android\libspirvharness.so"
     if (-not (Test-Path $harness)) {
-        throw "missing $harness. Build it once, with Docker Desktop running, from the repository root: docker run --rm -v ""${root}:/src"" -w /src mcr.microsoft.com/dotnet/sdk:10.0 sh games/p5r/tools/build_harness_android.sh"
+        throw "missing $harness. Build it once, with Docker Desktop running, from the repository root: docker run --rm -v ""${root}:/src"" -w /src mcr.microsoft.com/dotnet/sdk:10.0 sh games/p3p/tools/build_harness_android.sh"
     }
     $targets += "${Game}import"
     $extraLibs += @("$build\lib${Game}import.so", $harness)
@@ -56,8 +55,8 @@ foreach ($lib in $extraLibs) {
 }
 
 & "$bt\aapt2.exe" compile --dir "$PSScriptRoot\res" -o "$out\res.zip"
-# The launcher icon: the project's own (games\<game>\icon\res, e.g. games\p5r\tools\make_icon.py), else the game's,
-# when the player made it from their dump (private\<game>\icon\res, games\p5r\tools\nsp_icon.py): compiled with the
+# The launcher icon: the project's own (games\<game>\icon\res, e.g. games\p3p\tools), else the game's,
+# when the player made it from their dump (private\<game>\icon\res, games\p3p\tools): compiled with the
 # rest, and the manifest copy names it.
 $manifest = "$root\games\$Game\AndroidManifest.xml"
 $resZips = @("$out\res.zip")

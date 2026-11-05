@@ -76,13 +76,12 @@ inline std::string language_for_game(std::string value) {
     return list.find(" " + value + " ") != std::string::npos ? value : "en-us";
 }
 
-// The language the player configured: an explicit "auto" follows the device and ignores language.txt; otherwise use
-// the configured language, then <data root>/language.txt, then the device's language, then en-US.
+// The language the player configured: the "language" setting (config.txt on Android, the launcher's option; "auto" or
+// empty: none), else <data root>/language.txt, else the device's language, else en-US.
 inline uint64_t desired_language() {
     std::string value = language_lower_trimmed(plat::setting("language"));
-    const bool automatic = value == "auto";
-    if (automatic) value.clear();
-    if (value.empty() && !automatic) value = language_read_file(plat::data_root() + "/language.txt");
+    if (value == "auto") value.clear();
+    if (value.empty()) value = language_read_file(plat::data_root() + "/language.txt");
     if (value.empty()) value = language_for_game(language_from_system(plat::system_language()));
     struct Entry { const char* code; const char* names; };
     static const Entry kTable[] = {

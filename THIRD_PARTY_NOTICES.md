@@ -4,7 +4,7 @@ The Android APK of this project includes, as native code, the following software
 
 ## Ryujinx shader translator (Ryujinx.Graphics.Shader, Spv.Generator, Ryujinx.Common), from Ryubing
 
-Built into `libspirvharness.so` (tools/maxwell/spirv_harness, games/p5r/tools/build_harness_android.sh).
+Built into `libspirvharness.so` (tools/maxwell/spirv_harness, games/p3p/tools/build_harness_android.sh).
 
 ```
 MIT License
