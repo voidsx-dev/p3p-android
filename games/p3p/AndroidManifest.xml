@@ -59,7 +59,6 @@
         <!-- The game. Exported: test runs start it directly (games/p3p/tools/run_android.ps1). -->
         <activity
             android:name="android.app.NativeActivity"
-            android:process=":game"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
