@@ -72,7 +72,7 @@ struct Latch {
     uint64_t button, until_ns;
 };
 std::vector<Latch> g_latched;
-constexpr uint64_t kMinHoldNs = 150'000'000;
+constexpr uint64_t kMinHoldNs = 50'000'000;
 
 void release_touch(const Touch& t, uint64_t now) {
     if (t.button && now < t.down_ns + kMinHoldNs) g_latched.push_back({t.button, t.down_ns + kMinHoldNs});
@@ -100,7 +100,6 @@ uint64_t key_to_button(int32_t k) {
         case AKEYCODE_DPAD_UP: return kUp;
         case AKEYCODE_DPAD_RIGHT: return kRight;
         case AKEYCODE_DPAD_DOWN: return kDown;
-        case AKEYCODE_BACK: return kMinus;
         // A keyboard: Enter / Space confirm (A), Escape goes back (B). (Some tablets keep BUTTON_B for their stylus.)
         case AKEYCODE_ENTER: case AKEYCODE_NUMPAD_ENTER: case AKEYCODE_SPACE: case AKEYCODE_DPAD_CENTER: return kA;
         case AKEYCODE_ESCAPE: return kB;
