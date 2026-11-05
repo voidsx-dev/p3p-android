@@ -400,15 +400,12 @@ const char* vulkan_surface_extension() { return VK_KHR_ANDROID_SURFACE_EXTENSION
 
 int vulkan_create_surface(void* instance, void* native_window, uint64_t* surface, void* gipa) {
     ANativeWindow* win = static_cast<ANativeWindow*>(native_window);
-    uint32_t rw = 0, rh = 0;
-    window_size(rw, rh);
-    if (win && rw && rh) {
-        int32_t cur_w = ANativeWindow_getWidth(win), cur_h = ANativeWindow_getHeight(win);
-        bool portrait = cur_w < cur_h;
-        int32_t bw = int32_t(portrait ? std::min(rw, rh) : std::max(rw, rh));
-        int32_t bh = int32_t(portrait ? std::max(rw, rh) : std::min(rw, rh));
-        int r_geom = ANativeWindow_setBuffersGeometry(win, bw, bh, 0);
-        nx::log("android: setBuffersGeometry %dx%d (screen %dx%d) -> %d", bw, bh, cur_w, cur_h, r_geom);
+    if (win) {
+        // Leave the native buffer geometry untouched. window_size() is the game's render resolution,
+        // not the physical Android surface size; forcing it here makes SurfaceFlinger scale a 16:9
+        // buffer across the whole display before the NVN present pass can add pillarbox bars.
+        nx::log("android: native window %dx%d (buffer geometry unchanged)",
+                ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
     }
     auto create = reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(reinterpret_cast<PFN_vkGetInstanceProcAddr>(gipa)(
         static_cast<VkInstance>(instance), "vkCreateAndroidSurfaceKHR"));
@@ -669,11 +666,13 @@ extern "C" void android_main(android_app* app) {
             if (line.rfind("NX_", 0) == 0 && eq != std::string::npos) {
                 const std::string key = line.substr(0, eq);
                 const std::string value = line.substr(eq + 1);
-                // Launcher and NativeActivity share a process. Apply every saved switch on every launch: otherwise
-                // changing FPS or another option after returning to the launcher would leave the old env value active.
+                // Launcher and NativeActivity share a process. Apply every saved switch on every launch,
+                // so changed values (including NX_STRETCH and FPS) replace stale values from prior runs.
                 setenv(key.c_str(), value.c_str(), 1);
             }
         }
+        const char* stretch = std::getenv("NX_STRETCH");
+        nx::log("android: NX_STRETCH=%s", stretch ? stretch : "(unset/off)");
         // NX_HANDHELD=0 in config.txt (the launcher's TV mode): docked, 1080p. svc_am.cpp tests only whether the variable
         // exists, so "0" must remove it.
         if (const char* h = getenv("NX_HANDHELD"); h && h[0] == '0')
