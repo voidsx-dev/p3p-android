@@ -8,7 +8,7 @@ import java.util.Map;
  * The launcher's texts in the device's language. Callers keep their Spanish and English pair (t(es, en)); the other
  * languages are looked up here by the English text, which falls back to English when a text has no translation.
  * Texts with a variable part take it through String.format (%s, %d), so the key stays the same.
- * Only the launcher: the game picks its own text language (the "language" key of config.txt, or the device's).
+ * Only the launcher: the game follows the Android system language automatically.
  */
 final class Lang {
     // The columns of the table, after the English key.
@@ -58,10 +58,13 @@ final class Lang {
         put("Game files", "Fichiers du jeu", "Spieldateien", "File del gioco", "Arquivos do jogo", "ゲームファイル", "게임 파일",
                 "游戏文件", "遊戲檔案");
         put("Language", "Langue", "Sprache", "Lingua", "Idioma", "言語", "언어", "语言", "語言");
-        put("Display", "Affichage", "Anzeige", "Schermo", "Imagem", "表示", "화면", "显示", "顯示");
+        put("Display", "Affichage", "Anzeige", "Schermo", "Tela", "表示", "화면", "显示", "顯示");
+        put("Performance", "Performances", "Leistung", "Prestazioni", "Desempenho", "パフォーマンス", "성능", "性能", "效能");
         put("Controls", "Commandes", "Steuerung", "Controlli", "Controles", "操作", "조작", "控制", "控制");
-        put("Texture quality", "Qualité des textures", "Texturqualität", "Qualità delle texture",
-                "Qualidade das texturas", "テクスチャ品質", "텍스처 품질", "纹理质量", "紋理品質");
+        put("3D texture detail", "Détail des textures 3D", "3D-Texturdetails", "Dettaglio texture 3D",
+                "Detalhe das texturas 3D", "3Dテクスチャの詳細", "3D 텍스처 세부 수준", "3D纹理细节", "3D紋理細節");
+        put("Reduced", "Réduit", "Reduziert", "Ridotto", "Reduzido", "低", "낮음", "降低", "降低");
+        put("Balanced", "Équilibré", "Ausgewogen", "Bilanciato", "Equilibrado", "標準", "균형", "平衡", "平衡");
         put("Text and subtitle language", "Langue des textes et sous-titres", "Sprache für Texte und Untertitel",
                 "Lingua di testi e sottotitoli", "Idioma dos textos e legendas", "テキストと字幕の言語", "텍스트 및 자막 언어",
                 "文本和字幕语言", "文字與字幕語言");
@@ -82,8 +85,6 @@ final class Lang {
         put("High", "Élevés", "Hoch", "Alta", "Alto", "高", "높음", "高", "高");
         put("Frame rate", "Images par seconde", "Bildrate", "Fotogrammi al secondo", "Quadros por segundo",
                 "フレームレート", "프레임 레이트", "帧率", "影格率");
-        put("60 fps (experimental)", "60 fps (expérimental)", "60 fps (experimentell)", "60 fps (sperimentale)",
-                "60 fps (experimental)", "60 fps（実験的）", "60 fps (실험적)", "60 fps（实验性）", "60 fps（實驗性）");
         put("Shadows", "Ombres", "Schatten", "Ombre", "Sombras", "影", "그림자", "阴影", "陰影");
         put("Off", "Désactivé", "Aus", "Disattivato", "Desativado", "オフ", "끔", "关", "關");
         put("Fullscreen (stretch)", "Plein écran (étirer)", "Vollbild (strecken)", "Schermo intero (allarga)", "Tela cheia (esticar)", "\u5168\u753b\u9762\uff08\u5f15\u304d\u4f38\u3070\u3057\uff09", "\uc804\uccb4 \ud654\uba74 (\ub298\uc774\uae30)", "\u5168\u5c4f\uff08\u62c9\u4f38\uff09", "\u5168\u87a2\u5e55\uff08\u62c9\u4f38\uff09");
