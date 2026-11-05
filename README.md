@@ -1,74 +1,86 @@
-# Persona 3 Portable Android
+Persona 3 Portable Android
 
-**A native Android port of Persona 3 Portable, based on the P5R Android project.**
+An unofficial Android port project for Persona 3 Portable, based on the native Android architecture of the original P5R Android project.
 
-## About
+The goal is to adapt and improve the existing runtime and Android implementation to bring Persona 3 Portable to Android devices.
 
-P3P Android is an experimental project based on [P5R Android](https://github.com/Brandon04Gonzalez/p5r-android), aiming to bring **Persona 3 Portable (Nintendo Switch version)** to Android devices through native execution.
+«Status: Experimental / Work in Progress»
 
-The goal is to adapt the existing native Android runtime, loader, and system implementations to support Persona 3 Portable.
+Overview
 
-Unlike traditional Nintendo Switch emulation, this project aims to run the game's code natively on Android, using the device's ARM64 CPU and Vulkan graphics support.
+P3P Android is a community-driven project focused on adapting the native Android runtime for Persona 3 Portable.
 
-## Project Goals
+The project builds upon the foundation of the original P5R Android repository, with game-specific modifications, runtime adjustments, and Android-side improvements.
 
-- Port Persona 3 Portable to Android.
-- Adapt the existing native execution architecture.
-- Reuse and modify the upstream Android runtime where applicable.
-- Implement the system functionality required by Persona 3 Portable.
-- Support native Android input, audio, and graphics.
-- Investigate compatibility and performance across Android devices.
+This is not a traditional Nintendo Switch emulator. It uses a native execution approach targeting ARM64 Android devices.
 
-## Development Status
+Features
 
-<badge color="warning">Experimental — Work in Progress</badge>
+The project currently includes:
 
-This project is in its early development stages.
+- Stretch Screen – Screen scaling adjustments.
+- FPS options – Frame-rate related improvements and configuration.
+- Save System – Android save handling.
+- Save Fix – Improvements to save functionality.
+- Native Android Runtime – Adapted runtime components.
+- Touch and Controller Support – Android input integration inherited and adapted from the project foundation.
 
-The existing P5R Android implementation serves as the foundation, but substantial modifications may be required to support Persona 3 Portable.
+Features and compatibility are still being developed and tested.
 
-Compatibility and performance have not yet been established.
+Project Structure
 
-## Technical Direction
+Directory| Description
+"android/"| Android application and build scripts
+"games/p3p/"| Persona 3 Portable specific implementation
+"runtime/"| Native runtime components
+"recomp/"| Recompilation-related components
+"tools/"| Development and build utilities
+"docs/"| Project documentation
+"tests/"| Tests and validation
 
-The project builds upon the architecture of P5R Android:
+Building
 
-- **Native Execution:** Running game code directly on ARM64 hardware.
-- **Android Runtime:** Adapting Nintendo Switch system services to Android.
-- **Graphics:** Vulkan-based rendering.
-- **Audio:** Native Android audio integration.
-- **Input:** Android touchscreen and controller support.
+Android builds are handled through GitHub Actions.
 
-These components are subject to modification as development progresses.
+1. Open the repository's Actions tab.
+2. Select the available Android build workflow.
+3. Run the workflow on the desired branch.
+4. Download the generated build artifact if the workflow provides one.
 
-## Requirements
+Build availability and compatibility may vary as development progresses.
 
-The intended target platform is Android on ARM64 devices.
+Compatibility
 
-Final Android version, hardware requirements, and Vulkan compatibility requirements are still to be determined.
+The intended target is ARM64 Android devices.
 
-## Disclaimer
+Compatibility, performance, graphics behavior, and Android version support are still being evaluated.
 
-This project is an unofficial fan-made development project.
+A successful build does not guarantee that every device will run the application correctly.
+
+Game Files
+
+This repository does not distribute copyrighted game files or proprietary game assets.
+
+Users must provide their own legally obtained copy of the game and are responsible for complying with applicable laws.
+
+Credits
+
+- "Original P5R Android Project" (https://github.com/Brandon04Gonzalez/p5r-android) – Original project foundation and architecture.
+- "ATLUS" (https://www.atlus.com/) – Creator of Persona 3 Portable.
+- SEGA – Publisher of Persona 3 Portable.
+
+Special thanks to the original project's contributors and everyone helping with testing and development.
+
+Disclaimer
+
+This is an unofficial, community-made project.
 
 It is not affiliated with, endorsed by, or associated with ATLUS, SEGA, or Nintendo.
 
-Persona 3 Portable and all related intellectual property belong to their respective owners.
+Persona 3 Portable and all related trademarks and intellectual property belong to their respective owners.
 
-No copyrighted game files or proprietary game assets are intended to be distributed through this repository.
+License
 
-Users are responsible for their own game copies.
+This project is distributed under the MIT License, subject to the applicable licenses and notices of third-party components.
 
-## Credits
-
-- **Original Android project:** [Brandon04Gonzalez/p5r-android](https://github.com/Brandon04Gonzalez/p5r-android)
-- **ATLUS / SEGA:** Original creators of Persona 3 Portable.
-- **Nintendo:** Nintendo Switch platform.
-
-Special thanks to the original P5R Android project and its contributors for providing the foundation for this work.
-
-## License
-
-This project is based on P5R Android, originally released under the MIT License.
-
-See the [LICENSE](LICENSE) file for licensing terms and attribution.
+See "LICENSE" (LICENSE) and "THIRD_PARTY_NOTICES.md" (THIRD_PARTY_NOTICES.md) for details.
