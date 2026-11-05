@@ -400,16 +400,15 @@ const char* vulkan_surface_extension() { return VK_KHR_ANDROID_SURFACE_EXTENSION
 
 int vulkan_create_surface(void* instance, void* native_window, uint64_t* surface, void* gipa) {
     ANativeWindow* win = static_cast<ANativeWindow*>(native_window);
-    if (win) {
-        // Keep the Android surface at the actual window size. Do not use window_size() here:
-        // that is the game's internal render resolution (often 1920x1080), not the display
-        // resolution. Forcing the buffer to the render size makes Android scale it to the
-        // full 2340x1080 surface, stretching a 16:9 frame before the present pass can letterbox it.
+    uint32_t rw = 0, rh = 0;
+    window_size(rw, rh);
+    if (win && rw && rh) {
         int32_t cur_w = ANativeWindow_getWidth(win), cur_h = ANativeWindow_getHeight(win);
-        if (cur_w > 0 && cur_h > 0) {
-            int r_geom = ANativeWindow_setBuffersGeometry(win, cur_w, cur_h, 0);
-            nx::log("android: setBuffersGeometry %dx%d (window) -> %d", cur_w, cur_h, r_geom);
-        }
+        bool portrait = cur_w < cur_h;
+        int32_t bw = int32_t(portrait ? std::min(rw, rh) : std::max(rw, rh));
+        int32_t bh = int32_t(portrait ? std::max(rw, rh) : std::min(rw, rh));
+        int r_geom = ANativeWindow_setBuffersGeometry(win, bw, bh, 0);
+        nx::log("android: setBuffersGeometry %dx%d (screen %dx%d) -> %d", bw, bh, cur_w, cur_h, r_geom);
     }
     auto create = reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(reinterpret_cast<PFN_vkGetInstanceProcAddr>(gipa)(
         static_cast<VkInstance>(instance), "vkCreateAndroidSurfaceKHR"));
@@ -670,8 +669,9 @@ extern "C" void android_main(android_app* app) {
             if (line.rfind("NX_", 0) == 0 && eq != std::string::npos) {
                 const std::string key = line.substr(0, eq);
                 const std::string value = line.substr(eq + 1);
-                // Launcher and NativeActivity share a process: update stretch even if a previous launch set it to "1".
-                setenv(key.c_str(), value.c_str(), key == "NX_STRETCH" ? 1 : 0);
+                // Launcher and NativeActivity share a process. Apply every saved switch on every launch: otherwise
+                // changing FPS or another option after returning to the launcher would leave the old env value active.
+                setenv(key.c_str(), value.c_str(), 1);
             }
         }
         // NX_HANDHELD=0 in config.txt (the launcher's TV mode): docked, 1080p. svc_am.cpp tests only whether the variable
