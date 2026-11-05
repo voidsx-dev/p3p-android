@@ -15,7 +15,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Icon;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -49,12 +48,14 @@ import java.util.Map;
  * The home screen in front of the game (a NativeActivity, libp3p.so): checks for the player's data in Internal
  * storage/Persona 3 Portable (asking for all-files access), shows the options and writes them to that folder's
  * config.txt, whose NX_* lines the runtime turns into its switches:
- *   game text   follows the Android system language (English when the game lacks it). The voices are the game's own
+ *   game text   the language of the game's texts and subtitles (language=auto, default: the device's, English when
+ *               the game lacks it; or en-US, es, fr, de, it, ja, ko, zh-Hans, zh-Hant). The voices are the game's own
  *               option.
  *   resolution  720p (NX_HANDHELD=1, default) or 1080p (NX_HANDHELD=0)
  *   interface   at 720p (NX_HUD_1080=0, default: faster) or, in 720p, drawn at 1080p (NX_HUD_1080=1: sharper text)
- *   graphics    reduced, balanced or original 3D texture mip detail (NX_LOD_BIAS); 2D menus and HUD stay sharp.
- *   frame rate  fixed 30 or 60 fps (NX_FPS_CAP / NX_MAX_INTERVAL).
+ *   graphics    low (default), medium or high: textures one mip smaller (NX_LOD_BIAS=1), half a mip, or the game's
+ *               own. (A lower render resolution needs the engine's target sizes: games/p3p/PROGRESO.md.)
+ *   frame rate  30 (NX_FPS_CAP=30, default) or 60 (NX_FPS_CAP=60: games/p3p/game.cpp patches the engine's interval)
  *   FPS counter off (default) or on (NX_SHOW_FPS)
  *   shadows     off (NX_SHADOWS=0, default: the shadow maps are not drawn, ~9% of the GPU on the 3D title) or on
  *   on-screen controls on (default) or off (NX_TOUCH_SHOW), their size (NX_TOUCH_SIZE) and opacity (NX_TOUCH_OPACITY),
@@ -282,6 +283,13 @@ public class Launcher extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        // The game's texts and subtitles (runtime language.h): its own language names, as a console lists them.
+        options.add(new Option("language", "Idioma de textos y subtítulos", "Text and subtitle language",
+                new String[] {"auto", "en-US", "es", "fr", "de", "it", "ja", "ko", "zh-Hans", "zh-Hant"},
+                new String[] {"Automático (idioma del dispositivo)", "English", "Español", "Français", "Deutsch",
+                        "Italiano", "日本語", "한국어", "简体中文", "繁體中文"},
+                new String[] {"Automatic (device language)", "English", "Español", "Français", "Deutsch", "Italiano",
+                        "日本語", "한국어", "简体中文", "繁體中文"}, 0));
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
                 new String[] {"480p", "720p", "1080p"},
                 new String[] {"480p", "720p", "1080p"},
@@ -290,13 +298,10 @@ public class Launcher extends Activity {
                 new String[] {"0", "1"},
                 new String[] {"Desactivada", "Activada"},
                 new String[] {"Off", "On"}, 0));
-        // This setting changes the mip level of 3D textures only; it is not a global texture-resolution switch.
-        options.add(new Option("GRAPHICS", "Detalle de texturas 3D", "3D texture detail",
-                new String[] {"low", "medium", "high"},
-                new String[] {"Reducido", "Equilibrado", "Original"},
-                new String[] {"Reduced", "Balanced", "Original"}, 2));
-        options.add(new Option("NX_FPS_CAP", "Frecuencia de cuadros", "Frame rate", new String[] {"30", "60"},
-                new String[] {"30 FPS", "60 FPS"}, new String[] {"30 FPS", "60 FPS"}, 0));
+        options.add(new Option("GRAPHICS", "Calidad de texturas", "Texture quality", new String[] {"low", "medium", "high"},
+                new String[] {"Bajas", "Medias", "Altas"}, new String[] {"Low", "Medium", "High"}, 2));
+        options.add(new Option("NX_FPS_CAP", "Fotogramas por segundo", "Frame rate", new String[] {"30", "60"},
+                new String[] {"30 fps", "60 fps (experimental)"}, new String[] {"30 fps", "60 fps (experimental)"}, 0));
         options.add(new Option("NX_SHOW_FPS", "Contador de FPS", "FPS counter", new String[] {"0", "1"},
                 new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
@@ -319,55 +324,22 @@ public class Launcher extends Activity {
     void build() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable backdrop = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[] {Color.rgb(4, 13, 35), Color.rgb(8, 28, 62), Color.rgb(3, 10, 27)});
-        root.setBackground(backdrop);
-        int pad = dp(22);
-        root.setPadding(pad, dp(26), pad, dp(24));
-
-        TextView edition = new TextView(this);
-        edition.setText("S.E.E.S.  /  ANDROID EDITION");
-        edition.setTextColor(Color.rgb(80, 220, 238));
-        edition.setTextSize(11);
-        edition.setLetterSpacing(0.18f);
-        edition.setTypeface(Typeface.DEFAULT_BOLD);
-        root.addView(edition);
+        root.setBackgroundColor(Color.rgb(5, 12, 30));
+        int pad = dp(24);
+        root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
         title.setText("PERSONA 3 PORTABLE");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(27);
-        title.setLetterSpacing(0.06f);
+        title.setTextColor(Color.rgb(40, 120, 230));
+        title.setTextSize(30);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setPadding(0, dp(5), 0, 0);
         root.addView(title);
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("THE JOURNEY CONTINUES");
-        subtitle.setTextColor(Color.rgb(126, 171, 205));
-        subtitle.setTextSize(10);
-        subtitle.setLetterSpacing(0.22f);
-        subtitle.setPadding(0, 0, 0, dp(14));
-        root.addView(subtitle);
-
-        View accent = new View(this);
-        accent.setBackgroundColor(Color.rgb(47, 207, 226));
-        root.addView(accent, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(2)));
-
         status = new TextView(this);
-        status.setTextColor(Color.rgb(220, 235, 246));
+        status.setTextColor(Color.rgb(220, 220, 220));
         status.setTextSize(14);
-        status.setPadding(dp(12), dp(12), dp(12), dp(12));
-        GradientDrawable statusBg = new GradientDrawable();
-        statusBg.setColor(Color.argb(95, 17, 53, 85));
-        statusBg.setCornerRadius(dp(8));
-        statusBg.setStroke(dp(1), Color.argb(120, 58, 160, 190));
-        status.setBackground(statusBg);
-        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        statusLp.topMargin = dp(14);
-        statusLp.bottomMargin = dp(6);
-        root.addView(status, statusLp);
+        status.setPadding(0, dp(6), 0, dp(14));
+        root.addView(status);
 
         header(root, t("Archivos del juego", "Game files"));
         addRow(root, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
@@ -398,8 +370,7 @@ public class Launcher extends Activity {
             row.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
             final Button value = new Button(this);
             value.setAllCaps(false);
-            value.setMinWidth(dp(150));
-            styleButton(value, false);
+            value.setMinWidth(dp(180));
             row.addView(value);
             value.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -424,8 +395,7 @@ public class Launcher extends Activity {
         edit.addView(editName, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         Button editButton = new Button(this);
         editButton.setAllCaps(false);
-        editButton.setMinWidth(dp(150));
-        styleButton(editButton, false);
+        editButton.setMinWidth(dp(180));
         editButton.setText(t("Mover", "Move"));
         edit.addView(editButton);
         editButton.setOnClickListener(new View.OnClickListener() {
@@ -454,13 +424,11 @@ public class Launcher extends Activity {
         Button importButton = new Button(this);
         importButton.setAllCaps(false);
         importButton.setMinWidth(dp(88));
-        styleButton(importButton, false);
         importButton.setText(t("Importar", "Import"));
         saves.addView(importButton);
         Button exportButton = new Button(this);
         exportButton.setAllCaps(false);
         exportButton.setMinWidth(dp(88));
-        styleButton(exportButton, false);
         exportButton.setText(t("Exportar", "Export"));
         saves.addView(exportButton);
         importButton.setOnClickListener(new View.OnClickListener() {
@@ -488,7 +456,8 @@ public class Launcher extends Activity {
         play = new Button(this);
         play.setTextSize(20);
         play.setAllCaps(false);
-        styleButton(play, true);
+        play.setBackgroundColor(Color.rgb(40, 120, 230));
+        play.setTextColor(Color.WHITE);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64));
         lp.topMargin = dp(18);
         root.addView(play, lp);
@@ -600,12 +569,10 @@ public class Launcher extends Activity {
     void askImport() {
         new AlertDialog.Builder(this)
                 .setTitle(t("Importar partidas", "Import saves"))
-                .setMessage(t("Elige un archivo ZIP o una carpeta con partidas de Persona 3 Portable (las carpetas DATA01, "
-                                + "DATA02... y SYSTEM, como las exporta JKSV o Checkpoint, o el ZIP que exporta este botón). "
-                                + "Antes se guarda una copia de tus partidas actuales.",
-                        "Pick a ZIP file or a folder with Persona 3 Portable saves (the DATA01, DATA02... and SYSTEM folders, "
-                                + "as JKSV or Checkpoint export them, or the ZIP the Export button makes). Your current saves "
-                                + "are copied aside first."))
+                .setMessage(t("Selecione o ZIP de backup ou a pasta que contém os arquivos salvos. "
+                                + "Suas partidas atuais serão copiadas para um backup antes da importação.",
+                        "Select a backup ZIP or the folder containing the save files. "
+                                + "Your current saves will be backed up before importing."))
                 .setPositiveButton(t("Archivo ZIP", "ZIP file"), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
@@ -654,18 +621,17 @@ public class Launcher extends Activity {
             SaveFiles.Result r = request == PICK_ZIP ? SaveFiles.importZip(getContentResolver(), data.getData())
                     : request == PICK_FOLDER ? SaveFiles.importTree(getContentResolver(), data.getData()) : null;
             if (r == null) {
-                tell(t("No hay partidas", "No saves found"),
-                        t("Ahí no encontré partidas de Persona 3 Portable: busca las carpetas DATA01, DATA02... o SYSTEM.",
-                                "No Persona 3 Portable saves there: look for the DATA01, DATA02... or SYSTEM folders."));
+                tell(t("Nenhum save encontrado", "No saves found"),
+                        t("Não encontrei arquivos de save válidos nesse ZIP ou pasta. "
+                                        + "Escolha um backup exportado pelo P3P ou a pasta correta dos saves.",
+                                "No valid save files were found in that ZIP or folder. "
+                                        + "Choose a P3P backup or the correct save folder."));
                 return;
             }
-            String slots = r.slots.isEmpty() ? t("solo ajustes del sistema", "system settings only")
-                    : Lang.f("ranuras %s", "slots %s", android.text.TextUtils.join(", ", r.slots));
-            String kept = r.backup == null ? "" : Lang.f("\n\nTus partidas anteriores quedaron en user/%s.",
-                    "\n\nYour previous saves are in user/%s.", r.backup);
-            tell(t("Partidas importadas", "Saves imported"),
-                    Lang.f("%d archivos (%s). Ábrelas desde Cargar partida.", "%d files (%s). Open them from Load Game.",
-                            r.files, slots) + kept);
+            String kept = r.backup == null ? "" : Lang.f("\n\nBackup anterior: user/%s.",
+                    "\n\nPrevious backup: user/%s.", r.backup);
+            tell(t("Partidas restauradas", "Saves restored"),
+                    Lang.f("%d arquivos restaurados com sucesso.", "%d files restored successfully.", r.files) + kept);
         } catch (Exception e) {
             tell(t("No se pudo importar", "Import failed"), String.valueOf(e.getMessage()));
         }
@@ -729,10 +695,6 @@ public class Launcher extends Activity {
         if (!dataDir().isDirectory()) return;
         load();
         for (Option o : options) config.put(o.key, o.values[o.pick]);
-        // The game follows Android's system language; "auto" also ignores an older language.txt override.
-        config.put("language", "auto");
-        // 30 FPS is a fixed interval of 2; 60 FPS clamps the game's adaptive interval to 1.
-        config.put("NX_MAX_INTERVAL", "60".equals(config.get("NX_FPS_CAP")) ? "1" : "2");
         final String res = config.get("RESOLUTION");
         if ("480p".equals(res)) {
             config.put("NX_HANDHELD", "1");
@@ -759,8 +721,8 @@ public class Launcher extends Activity {
 
     // Section titles of the options screen: the first option of each section carries one.
     String[] sectionOf(String key) {
-        if ("RESOLUTION".equals(key)) return new String[] {"Pantalla", "Display"};
-        if ("NX_FPS_CAP".equals(key)) return new String[] {"Rendimiento", "Performance"};
+        if ("language".equals(key)) return new String[] {"Idioma", "Language"};
+        if ("RESOLUTION".equals(key)) return new String[] {"Imagen", "Display"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
         return null;
     }
@@ -768,29 +730,14 @@ public class Launcher extends Activity {
     void header(LinearLayout root, String text) {
         TextView h = new TextView(this);
         h.setText(text);
-        h.setTextColor(Color.rgb(74, 215, 235));
-        h.setTextSize(12);
-        h.setLetterSpacing(0.12f);
+        h.setTextColor(Color.rgb(110, 175, 255));
+        h.setTextSize(14);
         h.setTypeface(Typeface.DEFAULT_BOLD);
-        h.setPadding(0, dp(20), 0, dp(6));
+        h.setPadding(0, dp(18), 0, dp(4));
         root.addView(h);
     }
 
     int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
-
-    void styleButton(Button button, boolean primary) {
-        button.setAllCaps(false);
-        button.setTextColor(primary ? Color.rgb(4, 20, 38) : Color.rgb(218, 242, 250));
-        button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setTextSize(primary ? 18 : 14);
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                primary ? new int[] {Color.rgb(70, 224, 235), Color.rgb(65, 170, 225)}
-                        : new int[] {Color.rgb(17, 57, 91), Color.rgb(12, 42, 72)});
-        bg.setCornerRadius(dp(7));
-        bg.setStroke(dp(1), primary ? Color.rgb(117, 239, 245) : Color.rgb(50, 125, 165));
-        button.setBackground(bg);
-        button.setPadding(dp(12), dp(5), dp(12), dp(5));
-    }
 
     void addRow(LinearLayout root, String label, String button, View.OnClickListener click) {
         LinearLayout row = new LinearLayout(this);
@@ -804,8 +751,7 @@ public class Launcher extends Activity {
         row.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         Button b = new Button(this);
         b.setAllCaps(false);
-        b.setMinWidth(dp(150));
-        styleButton(b, false);
+        b.setMinWidth(dp(180));
         b.setText(button);
         b.setOnClickListener(click);
         row.addView(b);

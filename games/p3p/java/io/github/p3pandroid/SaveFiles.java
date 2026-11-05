@@ -37,6 +37,8 @@ import java.util.zip.ZipOutputStream;
 final class SaveFiles {
     static final Pattern MARK = Pattern.compile("(?:^|/)(DATA\\d\\d|SYSTEM)/");
     static final Pattern SLOT = Pattern.compile("(?:^|/)DATA(\\d\\d)/");
+    static final Pattern NATIVE_SLOT = Pattern.compile("(?i)^data(\\d{4})\\.bin$");
+    static final Pattern NATIVE_SAVE = Pattern.compile("(?i)(?:^|/)save/(?:P4G\\.ini|data\\d{4}\\.(?:bin|binslot))$");
     static final long MAX_BYTES = 256L << 20;  // a save is a few MB at most: anything bigger is not one
 
     /** What an import did: files written, the slots among them, the backup folder (null: there was nothing to keep). */
@@ -54,6 +56,16 @@ final class SaveFiles {
 
     /** The part of each path above the DATAnn/ or SYSTEM/ folders (the shortest one found), or null when none has them. */
     static String prefix(List<String> paths) {
+        // Our own Export ZIP contains save/P4G.ini and save/dataNNNN.bin(.binslot).
+        // These are the actual P3P runtime save files; they do not use Switch DATA01/SYSTEM folders.
+        boolean nativeSave = false;
+        boolean nativeData = false;
+        for (String p : paths) {
+            if (NATIVE_SAVE.matcher(p).matches()) nativeSave = true;
+            if (p.matches("(?i)^save/data\\d{4}\\.bin$")) nativeData = true;
+        }
+        if (nativeSave && nativeData) return "save/";
+
         String best = null;
         for (String p : paths) {
             Matcher m = MARK.matcher(p);
@@ -117,6 +129,10 @@ final class SaveFiles {
         r.files++;
         Matcher m = SLOT.matcher(rel);
         if (m.find()) r.slots.add(m.group(1));
+        else {
+            Matcher nativeSlot = NATIVE_SLOT.matcher(rel);
+            if (nativeSlot.matches()) r.slots.add(nativeSlot.group(1));
+        }
     }
 
     /** Null when the ZIP holds no saves. */
@@ -134,11 +150,32 @@ final class SaveFiles {
         if (pre == null || total > MAX_BYTES) return null;
         Result r = new Result();
         r.backup = backup();
+        long extracted = 0;
         try (ZipInputStream z = new ZipInputStream(cr.openInputStream(uri))) {
             for (ZipEntry e; (e = z.getNextEntry()) != null; ) {
                 if (e.isDirectory()) continue;
                 String rel = target(e.getName().replace('\\', '/'), pre);
-                if (rel != null) write(r, rel, z);
+                if (rel != null) {
+                    // Enforce the limit on decompressed data too (ZIP entries often report size -1).
+                    File out = new File(saveDir(), rel);
+                    File dir = out.getParentFile();
+                    if (dir != null && !dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot make " + dir);
+                    try (OutputStream o = new FileOutputStream(out)) {
+                        byte[] buf = new byte[1 << 16];
+                        for (int n; (n = z.read(buf)) > 0; ) {
+                            extracted += n;
+                            if (extracted > MAX_BYTES) throw new IOException("save archive is too large");
+                            o.write(buf, 0, n);
+                        }
+                    }
+                    r.files++;
+                    Matcher m = SLOT.matcher(rel);
+                    if (m.find()) r.slots.add(m.group(1));
+                    else {
+                        Matcher nativeSlot = NATIVE_SLOT.matcher(rel);
+                        if (nativeSlot.matches()) r.slots.add(nativeSlot.group(1));
+                    }
+                }
             }
         }
         return r;

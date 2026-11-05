@@ -8,7 +8,7 @@ import java.util.Map;
  * The launcher's texts in the device's language. Callers keep their Spanish and English pair (t(es, en)); the other
  * languages are looked up here by the English text, which falls back to English when a text has no translation.
  * Texts with a variable part take it through String.format (%s, %d), so the key stays the same.
- * Only the launcher: the game follows the Android system language automatically.
+ * Only the launcher: the game picks its own text language (the "language" key of config.txt, or the device's).
  */
 final class Lang {
     // The columns of the table, after the English key.
@@ -58,13 +58,10 @@ final class Lang {
         put("Game files", "Fichiers du jeu", "Spieldateien", "File del gioco", "Arquivos do jogo", "ゲームファイル", "게임 파일",
                 "游戏文件", "遊戲檔案");
         put("Language", "Langue", "Sprache", "Lingua", "Idioma", "言語", "언어", "语言", "語言");
-        put("Display", "Affichage", "Anzeige", "Schermo", "Tela", "表示", "화면", "显示", "顯示");
-        put("Performance", "Performances", "Leistung", "Prestazioni", "Desempenho", "パフォーマンス", "성능", "性能", "效能");
+        put("Display", "Affichage", "Anzeige", "Schermo", "Imagem", "表示", "화면", "显示", "顯示");
         put("Controls", "Commandes", "Steuerung", "Controlli", "Controles", "操作", "조작", "控制", "控制");
-        put("3D texture detail", "Détail des textures 3D", "3D-Texturdetails", "Dettaglio texture 3D",
-                "Detalhe das texturas 3D", "3Dテクスチャの詳細", "3D 텍스처 세부 수준", "3D纹理细节", "3D紋理細節");
-        put("Reduced", "Réduit", "Reduziert", "Ridotto", "Reduzido", "低", "낮음", "降低", "降低");
-        put("Balanced", "Équilibré", "Ausgewogen", "Bilanciato", "Equilibrado", "標準", "균형", "平衡", "平衡");
+        put("Texture quality", "Qualité des textures", "Texturqualität", "Qualità delle texture",
+                "Qualidade das texturas", "テクスチャ品質", "텍스처 품질", "纹理质量", "紋理品質");
         put("Text and subtitle language", "Langue des textes et sous-titres", "Sprache für Texte und Untertitel",
                 "Lingua di testi e sottotitoli", "Idioma dos textos e legendas", "テキストと字幕の言語", "텍스트 및 자막 언어",
                 "文本和字幕语言", "文字與字幕語言");
@@ -85,6 +82,8 @@ final class Lang {
         put("High", "Élevés", "Hoch", "Alta", "Alto", "高", "높음", "高", "高");
         put("Frame rate", "Images par seconde", "Bildrate", "Fotogrammi al secondo", "Quadros por segundo",
                 "フレームレート", "프레임 레이트", "帧率", "影格率");
+        put("60 fps (experimental)", "60 fps (expérimental)", "60 fps (experimentell)", "60 fps (sperimentale)",
+                "60 fps (experimental)", "60 fps（実験的）", "60 fps (실험적)", "60 fps（实验性）", "60 fps（實驗性）");
         put("Shadows", "Ombres", "Schatten", "Ombre", "Sombras", "影", "그림자", "阴影", "陰影");
         put("Off", "Désactivé", "Aus", "Disattivato", "Desativado", "オフ", "끔", "关", "關");
         put("Fullscreen (stretch)", "Plein écran (étirer)", "Vollbild (strecken)", "Schermo intero (allarga)", "Tela cheia (esticar)", "\u5168\u753b\u9762\uff08\u5f15\u304d\u4f38\u3070\u3057\uff09", "\uc804\uccb4 \ud654\uba74 (\ub298\uc774\uae30)", "\u5168\u5c4f\uff08\u62c9\u4f38\uff09", "\u5168\u87a2\u5e55\uff08\u62c9\u4f38\uff09");
@@ -272,5 +271,44 @@ final class Lang {
         put("Extracting the game's shaders (%d of %d)…", "Extraction des shaders du jeu (%d sur %d)…", "Shader des Spiels werden extrahiert (%d von %d)…", "Estrazione degli shader del gioco (%d di %d)…", "Extraindo os shaders do jogo (%d de %d)…", "ゲームのシェーダーを抽出中（%d / %d）…", "게임 셰이더 추출 중(%d / %d)…", "正在提取游戏着色器（%d / %d）…", "正在擷取遊戲著色器（%d / %d）…");
         put("Translating the shaders (%d of %d)…", "Traduction des shaders (%d sur %d)…", "Shader werden übersetzt (%d von %d)…", "Traduzione degli shader (%d di %d)…", "Traduzindo os shaders (%d de %d)…", "シェーダーを変換中（%d / %d）…", "셰이더 변환 중(%d / %d)…", "正在转换着色器（%d / %d）…", "正在轉換著色器（%d / %d）…");
         put("Finishing…", "Finalisation…", "Wird abgeschlossen…", "Completamento…", "Finalizando…", "仕上げ中…", "마무리 중…", "正在完成…", "正在完成…");
+        // Save import messages
+        put("Select a backup ZIP or the folder containing the save files. Your current saves will be backed up before importing.",
+                "Choisissez un ZIP de sauvegarde ou le dossier contenant les fichiers de sauvegarde. Vos sauvegardes actuelles seront copiées avant l’importation.",
+                "Wähle ein Backup-ZIP oder den Ordner mit den Speicherdaten. Deine aktuellen Spielstände werden vor dem Import gesichert.",
+                "Seleziona il file ZIP di backup o la cartella che contiene i salvataggi. I salvataggi attuali saranno copiati prima dell’importazione.",
+                "Selecione o ZIP de backup ou a pasta que contém os arquivos salvos. Suas partidas atuais serão copiadas para um backup antes da importação.",
+                "バックアップ ZIP またはセーブファイルを含むフォルダーを選択してください。インポート前に現在のセーブデータをバックアップします。",
+                "백업 ZIP 또는 저장 파일이 들어 있는 폴더를 선택하세요. 가져오기 전에 현재 세이브를 백업합니다。",
+                "选择备份 ZIP 或包含存档文件的文件夹。导入前会先备份当前存档。",
+                "選擇備份 ZIP 或包含存檔檔案的資料夾。匯入前會先備份目前的存檔。");
+        put("No valid save files were found in that ZIP or folder. Choose a P3P backup or the correct save folder.",
+                "Aucun fichier de sauvegarde valide n’a été trouvé dans ce ZIP ou dossier. Choisissez une sauvegarde P3P ou le bon dossier.",
+                "In diesem ZIP oder Ordner wurden keine gültigen Speicherdaten gefunden. Wähle ein P3P-Backup oder den richtigen Speicherordner.",
+                "Nessun file di salvataggio valido trovato in questo ZIP o cartella. Seleziona un backup P3P o la cartella corretta.",
+                "Não encontrei arquivos de save válidos nesse ZIP ou pasta. Escolha um backup exportado pelo P3P ou a pasta correta dos saves.",
+                "この ZIP またはフォルダーに有効なセーブデータがありません。P3P のバックアップか正しいセーブフォルダーを選択してください。",
+                "이 ZIP 또는 폴더에서 유효한 세이브 파일을 찾지 못했습니다. P3P 백업이나 올바른 세이브 폴더를 선택하세요。",
+                "此 ZIP 或文件夹中没有找到有效存档。请选择 P3P 备份或正确的存档文件夹。",
+                "此 ZIP 或資料夾中找不到有效存檔。請選擇 P3P 備份或正確的存檔資料夾。");
+        put("%d files restored successfully.",
+                "%d fichiers restaurés avec succès.", "%d Dateien erfolgreich wiederhergestellt.",
+                "%d file ripristinati correttamente.", "%d arquivos restaurados com sucesso.",
+                "%d 個のファイルを復元しました。", "%d개 파일을 성공적으로 복원했습니다.",
+                "已成功恢复 %d 个文件。", "已成功還原 %d 個檔案。");
+        put("\n\nPrevious backup: user/%s.",
+                "\n\nSauvegarde précédente : user/%s.", "\n\nVorheriges Backup: user/%s.",
+                "\n\nBackup precedente: user/%s.", "\n\nBackup anterior: user/%s.",
+                "\n\n以前のバックアップ: user/%s。", "\n\n이전 백업: user/%s.",
+                "\n\n之前的备份：user/%s。", "\n\n先前的備份：user/%s。");
+
+        put("Saves restored",
+                "Sauvegardes restaurées", "Spielstände wiederhergestellt", "Salvataggi ripristinati",
+                "Partidas restauradas", "セーブデータを復元しました", "세이브를 복원했습니다",
+                "存档已恢复", "存檔已還原");
+        put("No saves found",
+                "Aucune sauvegarde trouvée", "Keine Spielstände gefunden", "Nessun salvataggio trovato",
+                "Nenhum save encontrado", "セーブデータが見つかりません", "세이브를 찾을 수 없습니다",
+                "未找到存档", "找不到存檔");
+
     }
 }
