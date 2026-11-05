@@ -102,7 +102,17 @@ PY
 fi
 
 "$bt/aapt2" compile --dir "$root/android/res" -o "$out/res.zip"
-"$bt/aapt2" link -o "$out/base.apk" -I "$jar" --manifest "$root/games/$game/AndroidManifest.xml" "$out/res.zip"
+res_zips=("$out/res.zip")
+manifest="$root/games/$game/AndroidManifest.xml"
+icon_res="$root/games/$game/icon/res"
+if [ ! -d "$icon_res" ]; then icon_res="$priv/icon/res"; fi
+if [ -d "$icon_res" ]; then
+    "$bt/aapt2" compile --dir "$icon_res" -o "$out/icon.zip"
+    res_zips+=("$out/icon.zip")
+    sed 's/<application/<application android:icon="@mipmap\/ic_launcher"/' "$manifest" > "$out/AndroidManifest.xml"
+    manifest="$out/AndroidManifest.xml"
+fi
+"$bt/aapt2" link -o "$out/base.apk" -I "$jar" --manifest "$manifest" "${res_zips[@]}"
 (cd "$out" && zip -q -9 base.apk "lib/arm64-v8a/lib$game.so")
 "$bt/zipalign" -f -p 4 "$out/base.apk" "$out/aligned.apk"
 "$bt/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --key-pass pass:android \
