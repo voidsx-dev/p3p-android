@@ -482,24 +482,30 @@ void frame_time_probe(CPU& c) {
         static uint64_t n = 0;
         if (++n % 600 == 0) svc_profile_report(600, 1);
     }
-    // NX_FPS_CAP=30 (the launcher's "FPS limit"): the game is held at its own 30 fps mode, interval 2, always. The
-    // game's logic steps by the interval it asked for, so the speed stays right; only the governors below are off.
-    // 60 or unset: the game's own behaviour (60 when it can, 30 when heavy) plus our governor.
-    static const bool cap30 = [] {
-        const char* e = std::getenv("NX_FPS_CAP");
-        bool on = e && std::atoi(e) > 0 && std::atoi(e) <= 30;
-        if (on) log("nvn: NX_FPS_CAP=%s: present interval held at 2 (30 fps)", e);
-        return on;
-    }();
+    // NX_FPS_CAP=30 holds the game's logic at interval 2 and pace_present applies an absolute 30 Hz deadline.
+    // NX_FPS_CAP=60 plus NX_MAX_INTERVAL=1 holds interval 1 and pace_present applies an absolute 60 Hz deadline.
+    // When neither is configured, the game's adaptive interval and our governor remain in control.
+    const char* fps_env = std::getenv("NX_FPS_CAP");
+    const bool cap30 = fps_env && std::atoi(fps_env) > 0 && std::atoi(fps_env) <= 30;
+    static int last_cap = -1;
+    const int current_cap = cap30 ? 30 : fps_env && std::atoi(fps_env) >= 60 ? 60 : 0;
+    if (last_cap != current_cap) {
+        log("nvn: NX_FPS_CAP=%s: %s", fps_env ? fps_env : "auto",
+            current_cap == 30 ? "fixed 30 fps (interval 2)"
+            : current_cap == 60 ? "fixed 60 fps (interval 1)" : "adaptive frame pacing");
+        last_cap = current_cap;
+    }
     if (cap30) {
         c.x[1] = 2;
+        st<uint32_t>(c.x[19] + 0x24c, 2);
         st<uint32_t>(c.x[19] + 0x264, 2);
         st<uint32_t>(c.x[19] + 0x268, 2);
     }
-    static const char* max_env = std::getenv("NX_MAX_INTERVAL");
+    const char* max_env = std::getenv("NX_MAX_INTERVAL");
     static uint32_t game_max = 0;  // the game's own maximum (fw[0x24c]), restored when the governor lets go
     if (!game_max) game_max = ld<uint32_t>(c.x[19] + 0x24c);
-    uint32_t max = cap30 ? 0 : max_env && std::atoi(max_env) >= 1 ? uint32_t(std::atoi(max_env)) : governor_max(plat::monotonic_ns());
+    uint32_t max = cap30 ? 0 : max_env && std::atoi(max_env) >= 1
+            ? uint32_t(std::atoi(max_env)) : governor_max(plat::monotonic_ns());
     if (!max && !max_env && game_max) st<uint32_t>(c.x[19] + 0x24c, game_max);
     if (max >= 1) {
         st<uint32_t>(c.x[19] + 0x24c, max);
@@ -580,13 +586,19 @@ void WindowSetPresentInterval(CPU& c) {
 }
 
 // (NVNqueue*, NVNwindow*, int textureIndex)
-// Frame pacing: a present returns no earlier than the window's present interval (in 60 Hz vsyncs) after the previous
-// one. On the Switch the texture-available sync of the next acquire does this; ours is signaled at once, so without
-// it the game runs as fast as it can once it is faster than 60 fps. A late frame is not snapped to the next vsync
-// (an 18 ms frame stays 18 ms, not 33). NX_NO_FRAME_LIMIT=1: unpaced.
+// Frame pacing: the game's interval is expressed in display refresh periods, but that is not a fixed FPS cap on
+// 90/120 Hz Android panels (interval 2 would mean 45/60 fps). NX_FPS_CAP therefore uses an absolute 30/60 Hz period;
+// without it, preserve the game's normal interval-based pacing. NX_NO_FRAME_LIMIT=1: unpaced.
 void pace_present(int interval) {
     static const bool off = std::getenv("NX_NO_FRAME_LIMIT") != nullptr;
     static uint64_t next = 0;
+    static int last_cap = -1;
+    const char* fps_env = std::getenv("NX_FPS_CAP");
+    const int cap = fps_env ? std::atoi(fps_env) : 0;
+    if (cap != last_cap) {
+        next = 0;  // do not carry a deadline from the previous mode across a launcher restart
+        last_cap = cap;
+    }
     if (off || interval <= 0) return;
     uint64_t now = plat::monotonic_ns();
     if (next > now) plat::sleep_ns(next - now), now = plat::monotonic_ns();
@@ -594,7 +606,9 @@ void pace_present(int interval) {
     at2 += interval >= 2;
     if (++presents % 600 == 0)
         log("nvn: %llu of the last 600 presents at interval >= 2", (unsigned long long)at2), at2 = 0, log_wait_sites();
-    uint64_t period = uint64_t(interval) * display_period_ns();
+    const uint64_t period = cap == 30 ? 1000000000ull / 30
+                           : cap == 60 ? 1000000000ull / 60
+                                       : uint64_t(interval) * display_period_ns();
     next = (next > now || now - next < period ? next : now) + period;
 }
 
