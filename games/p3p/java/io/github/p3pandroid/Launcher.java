@@ -700,7 +700,7 @@ public class Launcher extends Activity {
         config.put("resolution", size);
         config.put("NX_RENDER_RES", size);
         config.put("NX_RES", handheld ? "720p" : res);
-        for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS"}) config.remove(k);
+        for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS", "NX_GPU_PROFILE"}) config.remove(k);
         final String preset = config.get("GRAPHICS");
         if ("low".equals(preset)) config.put("NX_LOD_BIAS", "1");
         else if ("medium".equals(preset)) config.put("NX_LOD_BIAS", "0.5");
