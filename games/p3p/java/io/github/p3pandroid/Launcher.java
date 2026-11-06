@@ -280,9 +280,9 @@ public class Launcher extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
-                new String[] {"480p", "720p", "1080p"},
-                new String[] {"480p", "720p", "1080p"},
-                new String[] {"480p", "720p", "1080p"}, 1));
+                new String[] {"480p", "540p", "720p", "900p", "1080p"},
+                new String[] {"480p", "540p", "720p", "900p", "1080p"},
+                new String[] {"480p", "540p", "720p", "900p", "1080p"}, 2));
         options.add(new Option("NX_STRETCH", "Pantalla completa (estirar)", "Fullscreen (stretch)",
                 new String[] {"0", "1"},
                 new String[] {"Desactivada", "Activada"},
@@ -687,22 +687,19 @@ public class Launcher extends Activity {
         // Game text and subtitles always follow the device's language (no option on screen).
         config.put("language", "auto");
         final String res = config.get("RESOLUTION");
-        if ("480p".equals(res)) {
-            config.put("NX_HANDHELD", "1");
-            config.put("resolution", "854x480");
-            config.put("NX_RENDER_RES", "854x480");
-            config.put("NX_RES", "480p");
-        } else if ("1080p".equals(res)) {
-            config.put("NX_HANDHELD", "0");
-            config.put("resolution", "1920x1080");
-            config.put("NX_RENDER_RES", "1920x1080");
-            config.put("NX_RES", "1080p");
-        } else {
-            config.put("NX_HANDHELD", "1");
-            config.put("resolution", "1280x720");
-            config.put("NX_RENDER_RES", "1280x720");
-            config.put("NX_RES", "720p");
-        }
+        // 720p is the handheld mode (the game's own 1280x720). The other sizes run docked with NX_RENDER_RES: in handheld
+        // mode the game ignores the size asked (logs: "480p" still drew every pass at 1280x720), docked it follows it
+        // (1080p drew at 1920x1080).
+        String size = "1280x720";
+        if ("480p".equals(res)) size = "854x480";
+        else if ("540p".equals(res)) size = "960x540";
+        else if ("900p".equals(res)) size = "1600x900";
+        else if ("1080p".equals(res)) size = "1920x1080";
+        final boolean handheld = !"480p".equals(res) && !"540p".equals(res) && !"900p".equals(res) && !"1080p".equals(res);
+        config.put("NX_HANDHELD", handheld ? "1" : "0");
+        config.put("resolution", size);
+        config.put("NX_RENDER_RES", size);
+        config.put("NX_RES", handheld ? "720p" : res);
         for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS"}) config.remove(k);
         final String preset = config.get("GRAPHICS");
         if ("low".equals(preset)) config.put("NX_LOD_BIAS", "1");
