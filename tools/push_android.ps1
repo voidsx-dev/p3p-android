@@ -36,5 +36,5 @@ if ($Resolution) {
     Set-Content -Path "$env:TEMP\hades_config.txt" -Value "resolution=$Resolution" -Encoding ascii
     & $adb push "$env:TEMP\hades_config.txt" "$dst/config.txt"
 }
-& $adb shell am start -n "$pkg/android.app.NativeActivity"
+& $adb shell am start -n "$pkg/io.github.p3pandroid.GameActivity"
 Write-Host "Started. Log: adb logcat -s hades"

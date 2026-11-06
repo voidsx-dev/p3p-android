@@ -58,7 +58,7 @@ for ($k = 1; $k -le $Repeat; $k++) {
     A shell rm -rf "'$data/frames'" "'$data/user/save'" | Out-Null  # a new game: the script expects the first menus
     A shell mkdir -p "'$data/frames'" | Out-Null
     A shell input keyevent KEYCODE_WAKEUP
-    A shell am start -n "$pkg/android.app.NativeActivity" | Out-Null
+    A shell am start -n "$pkg/io.github.p3pandroid.GameActivity" | Out-Null
     Start-Sleep $Seconds
     $alive = [bool](A shell pidof $pkg)
     A pull "$data/nx.log" "$run\nx.log" | Out-Null
