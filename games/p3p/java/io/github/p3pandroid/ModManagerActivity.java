@@ -142,12 +142,26 @@ public final class ModManagerActivity extends Activity {
                     return;
                 }
                 String suggested = cleanName(filename.substring(0, filename.length() - 4));
+                android.widget.EditText destination = new android.widget.EditText(this);
+                destination.setSingleLine(true);
+                destination.setText(filename);
+                destination.setHint("ex.: caminho/do/arquivo.cpk");
+                destination.setSelectAllOnFocus(true);
+                LinearLayout wrap = new LinearLayout(this);
+                wrap.setOrientation(LinearLayout.VERTICAL);
+                wrap.setPadding(dp(20), dp(8), dp(20), 0);
+                TextView explanation = text(
+                        "Informe o caminho EXATO do arquivo dentro do RomFS do jogo. " +
+                        "Ele será criado em mods/" + suggested + "/romfs/.",
+                        13, Color.LTGRAY, false);
+                wrap.addView(explanation);
+                wrap.addView(destination);
                 new AlertDialog.Builder(this)
                     .setTitle("Destino do CPK")
-                    .setMessage("O arquivo será instalado como data/umd0.cpk dentro do mod. Se o mod substituir o segundo pacote, escolha umd1.")
-                    .setPositiveButton("umd0.cpk", (d, w) -> importCpk(uri, suggested, "umd0.cpk"))
+                    .setView(wrap)
+                    .setPositiveButton("Importar", (d, w) ->
+                            importCpk(uri, suggested, destination.getText().toString()))
                     .setNegativeButton("Cancelar", null)
-                    .setNeutralButton("umd1.cpk", (d, w) -> importCpk(uri, suggested, "umd1.cpk"))
                     .show();
             } else if (request == PICK_ZIP) {
                 importZip(uri, cleanName(displayName(uri).replaceFirst("(?i)\\.zip$", "")));
@@ -182,10 +196,21 @@ public final class ModManagerActivity extends Activity {
         return out;
     }
 
-    private void importCpk(Uri uri, String name, String target) {
+    private void importCpk(Uri uri, String name, String relativePath) {
         try {
+            String rel = relativePath == null ? "" : relativePath.trim().replace('\\', '/');
+            if (rel.isEmpty() || rel.startsWith("/") || rel.matches("^[A-Za-z]:.*"))
+                throw new Exception("Informe um caminho relativo dentro do RomFS.");
+            for (String part : rel.split("/"))
+                if (part.isEmpty() || part.equals(".") || part.equals(".."))
+                    throw new Exception("O caminho informado não é seguro.");
+            if (!rel.toLowerCase(Locale.ROOT).endsWith(".cpk"))
+                throw new Exception("O destino precisa terminar em .cpk.");
             File mod = uniqueMod(name);
-            File out = new File(mod, "romfs/data/" + target);
+            File out = new File(new File(mod, "romfs"), rel);
+            String rootPath = new File(mod, "romfs").getCanonicalPath() + File.separator;
+            if (!out.getCanonicalPath().startsWith(rootPath))
+                throw new Exception("Caminho de destino inválido.");
             File parent = out.getParentFile();
             if (!parent.isDirectory() && !parent.mkdirs()) throw new Exception("Não foi possível criar a pasta do mod.");
             try (InputStream in = getContentResolver().openInputStream(uri);
