@@ -88,7 +88,9 @@ public final class ModManagerActivity extends Activity {
         TextView title = text("GERENCIADOR DE MODS", 23, Color.WHITE, true);
         top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         Button back = button("Voltar");
-        back.setOnClickListener(v -> finish());
+        back.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { finish(); }
+        });
         top.addView(back);
         root.addView(top);
 
@@ -102,8 +104,12 @@ public final class ModManagerActivity extends Activity {
         Button zip = button("Importar ZIP");
         actions.addView(cpk, new LinearLayout.LayoutParams(0, -2, 1));
         actions.addView(zip, new LinearLayout.LayoutParams(0, -2, 1));
-        cpk.setOnClickListener(v -> pick(PICK_CPK));
-        zip.setOnClickListener(v -> pick(PICK_ZIP));
+        cpk.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { pick(PICK_CPK); }
+        });
+        zip.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { pick(PICK_ZIP); }
+        });
         root.addView(actions);
 
         TextView note = text("Mods são lidos de Persona 3 Portable/mods. Pastas iniciadas por _ ficam desativadas. Reinicie o jogo para aplicar alterações.",
@@ -159,8 +165,11 @@ public final class ModManagerActivity extends Activity {
                 new AlertDialog.Builder(this)
                     .setTitle("Destino do CPK")
                     .setView(wrap)
-                    .setPositiveButton("Importar", (d, w) ->
-                            importCpk(uri, suggested, destination.getText().toString()))
+                    .setPositiveButton("Importar", new android.content.DialogInterface.OnClickListener() {
+                        @Override public void onClick(android.content.DialogInterface dialog, int which) {
+                            importCpk(uri, suggested, destination.getText().toString());
+                        }
+                    })
                     .setNegativeButton("Cancelar", null)
                     .show();
             } else if (request == PICK_ZIP) {
@@ -317,7 +326,11 @@ public final class ModManagerActivity extends Activity {
         if (dirs != null) for (File f : dirs)
             if (f.isDirectory() && !f.getName().startsWith(".") && hasFiles(new File(f, "romfs")))
                 mods.add(f);
-        Collections.sort(mods, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        Collections.sort(mods, new java.util.Comparator<File>() {
+            @Override public int compare(File a, File b) {
+                return a.getName().compareToIgnoreCase(b.getName());
+            }
+        });
         Map<String, List<String>> owners = new HashMap<>();
         for (File mod : mods) if (!mod.getName().startsWith("_"))
             collectFiles(new File(mod, "romfs"), "", mod.getName(), owners);
@@ -344,7 +357,14 @@ public final class ModManagerActivity extends Activity {
         for (File f : files) {
             String p = rel.isEmpty() ? f.getName() : rel + "/" + f.getName();
             if (f.isDirectory()) collectFiles(f, p, mod, owners);
-            else owners.computeIfAbsent(p, k -> new ArrayList<>()).add(mod);
+            else {
+                List<String> list = owners.get(p);
+                if (list == null) {
+                    list = new ArrayList<>();
+                    owners.put(p, list);
+                }
+                list.add(mod);
+            }
         }
     }
 
@@ -393,15 +413,23 @@ public final class ModManagerActivity extends Activity {
         actions.addView(toggle);
         actions.addView(remove);
         card.addView(actions);
-        toggle.setOnClickListener(v -> toggle(folder));
-        remove.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("Remover " + display + "?")
-                .setMessage("Somente os arquivos deste mod serão removidos.")
-                .setNegativeButton("Cancelar", null)
-                .setPositiveButton("Remover", (d, w) -> {
-                    if (deleteTree(folder)) refresh();
-                    else toast("Não foi possível remover o mod.");
-                }).show());
+        toggle.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { toggle(folder); }
+        });
+        remove.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                new AlertDialog.Builder(ModManagerActivity.this)
+                    .setTitle("Remover " + display + "?")
+                    .setMessage("Somente os arquivos deste mod serão removidos.")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Remover", new android.content.DialogInterface.OnClickListener() {
+                        @Override public void onClick(android.content.DialogInterface dialog, int which) {
+                            if (deleteTree(folder)) refresh();
+                            else toast("Não foi possível remover o mod.");
+                        }
+                    }).show();
+            }
+        });
     }
 
     private void toggle(File folder) {

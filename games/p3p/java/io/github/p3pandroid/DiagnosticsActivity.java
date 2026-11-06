@@ -62,7 +62,9 @@ public final class DiagnosticsActivity extends Activity {
         Button back = new Button(this);
         back.setAllCaps(false);
         back.setText("Voltar");
-        back.setOnClickListener(v -> finish());
+        back.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { finish(); }
+        });
         top.addView(back);
         root.addView(top);
 
@@ -114,7 +116,7 @@ public final class DiagnosticsActivity extends Activity {
         java.util.Map<String, String> cfg = Launcher.readConfig(new File(data, "config.txt"));
         item(content, out, "Limite de FPS", cfg.getOrDefault("NX_FPS_CAP", "padrão do runtime"));
         item(content, out, "Contador FPS", "1".equals(cfg.get("NX_SHOW_FPS")) ? "Ativado" : "Desativado");
-        item(content, out, "Resolução", cfg.getOrDefault("resolution", "padrão"));
+        item(content, out, "Resolução", cfg.getOrDefault("RESOLUTION", "padrão"));
         item(content, out, "Gráficos", cfg.getOrDefault("GRAPHICS", "padrão"));
 
         File storage = data.exists() ? data : Environment.getExternalStorageDirectory();
@@ -125,12 +127,14 @@ public final class DiagnosticsActivity extends Activity {
         Button copy = new Button(this);
         copy.setAllCaps(false);
         copy.setText("Copiar diagnóstico");
-        copy.setOnClickListener(v -> {
-            String full = report + "\nGPU (OpenGL ES): " + gpuValue.getText();
-            ClipboardManager cb = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-            if (cb != null) {
-                cb.setPrimaryClip(ClipData.newPlainText("P3P diagnostics", full));
-                Toast.makeText(this, "Diagnóstico copiado", Toast.LENGTH_SHORT).show();
+        copy.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                String full = report + "\nGPU (OpenGL ES): " + gpuValue.getText();
+                ClipboardManager cb = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                if (cb != null) {
+                    cb.setPrimaryClip(ClipData.newPlainText("P3P diagnostics", full));
+                    Toast.makeText(DiagnosticsActivity.this, "Diagnóstico copiado", Toast.LENGTH_SHORT).show();
+                }
             }
         });
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
@@ -150,10 +154,13 @@ public final class DiagnosticsActivity extends Activity {
                 final String vendor = gl.glGetString(GL10.GL_VENDOR);
                 final String renderer = gl.glGetString(GL10.GL_RENDERER);
                 final String version = gl.glGetString(GL10.GL_VERSION);
-                runOnUiThread(() -> gpuValue.setText(
-                        (vendor == null ? "" : vendor + " • ") +
-                        (renderer == null ? "Não identificado" : renderer) +
-                        (version == null ? "" : "\n" + version)));
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        gpuValue.setText((vendor == null ? "" : vendor + " • ") +
+                                (renderer == null ? "Não identificado" : renderer) +
+                                (version == null ? "" : "\n" + version));
+                    }
+                });
             }
             @Override public void onSurfaceChanged(GL10 gl, int width, int height) {}
             @Override public void onDrawFrame(GL10 gl) {}
