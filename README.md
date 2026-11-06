@@ -1,30 +1,28 @@
-Persona 3 Portable — Android
+## PERSONA 3 PORTABLE — ANDROID
 
 <p align="center">
-  An unofficial Android project bringing <strong>Persona 3 Portable</strong> to ARM64 Android devices.
+  An unofficial Android project bringing **Persona 3 Portable** to ARM64 Android devices.
 </p><p align="center">
-  <strong>Experimental · Open Source · Community Driven</strong>
+  **EXPERIMENTAL · OPEN SOURCE · COMMUNITY DRIVEN**
 </p>---
 
-About
+## ABOUT
 
 P3P Android is an unofficial project focused on adapting Persona 3 Portable to run natively on Android devices.
 
 Built upon the Android architecture of the original P5R Android project, it combines a customized runtime, game-specific modifications, and an Android launcher to provide a portable way to experience Persona 3 Portable.
 
-This project does not work like a traditional Nintendo Switch emulator. It uses a native execution approach designed for ARM64 Android devices.
+This is not a traditional Nintendo Switch emulator. It uses a native execution approach designed for ARM64 Android devices.
 
 «Development status: Experimental. Compatibility and performance are still being improved.»
 
-Download
+## DOWNLOAD
 
-<p align="center">
-  <a href="https://github.com/voidsx-dev/p3p-android/releases">
-    <strong>Download the latest APK</strong>
-  </a>
-</p>All official builds are published on the GitHub Releases page.
+Get the latest APK from the official GitHub Releases page:
 
-Features
+"DOWNLOAD P3P ANDROID" (https://github.com/voidsx-dev/p3p-android/releases)
+
+## FEATURES
 
 - Game Launcher — Game preparation, configuration, and launching.
 - Performance Options — Configurable frame rate settings.
@@ -38,11 +36,9 @@ Features
 
 Features may vary depending on device compatibility and project development.
 
-Requirements
+## REQUIREMENTS
 
-Before installing, make sure you have:
-
-- An ARM64 Android device.
+- ARM64 Android device.
 - Android 10 or newer.
 - Vulkan 1.1 support.
 - Permission to access files and folders.
@@ -51,7 +47,7 @@ Before installing, make sure you have:
 
 Important: Game files and encryption keys are not included in this project.
 
-Installation Guide
+## INSTALLATION GUIDE
 
 1. Download the latest APK from "GitHub Releases" (https://github.com/voidsx-dev/p3p-android/releases).
 2. Install the APK on your Android device.
@@ -62,7 +58,7 @@ Installation Guide
 
 The preparation process is normally required only once, unless the game data needs to be prepared again.
 
-Compatibility & Performance
+## COMPATIBILITY & PERFORMANCE
 
 Performance depends on several factors, including:
 
@@ -76,7 +72,7 @@ Lower-end devices may experience frame drops, loading stutters, or other perform
 
 Not every Android device is guaranteed to work correctly.
 
-Known Limitations
+## KNOWN LIMITATIONS
 
 As the project is still experimental, users may encounter:
 
@@ -87,11 +83,9 @@ As the project is still experimental, users may encounter:
 
 Reports and feedback from users are valuable for improving the project.
 
-Building from Source
+## BUILDING FROM SOURCE
 
 The project uses GitHub Actions to automate Android APK builds.
-
-For developers who want to build the project:
 
 1. Fork or clone this repository.
 2. Review the repository's build configuration.
@@ -102,7 +96,7 @@ For developers who want to build the project:
 
 Build requirements and dependencies may change during development.
 
-Project Structure
+## PROJECT STRUCTURE
 
 Directory| Purpose
 "android/"| Android application and build scripts
@@ -113,7 +107,7 @@ Directory| Purpose
 "docs/"| Project documentation
 "tests/"| Tests and validation
 
-Credits & Acknowledgements
+## CREDITS & ACKNOWLEDGEMENTS
 
 This project builds upon the work and architecture of the original P5R Android project.
 
@@ -123,17 +117,15 @@ This project builds upon the work and architecture of the original P5R Android p
 
 Special thanks to the original developers, contributors, and everyone who helps test and improve this project.
 
-Community & Support
+## COMMUNITY & SUPPORT
 
 Have questions, want to share your experience, or need help?
 
 Join the P4G | Android Community on Discord to connect with other users and discuss Android game ports.
 
-<p align="center">
-  <a href="https://discord.gg/yF6FtNK6rM">
-    <strong>Join the Discord Community</strong>
-  </a>
-</p>Disclaimer
+"JOIN THE DISCORD COMMUNITY" (https://discord.gg/yF6FtNK6rM)
+
+## DISCLAIMER
 
 P3P Android is an unofficial, community-developed project.
 
@@ -143,7 +135,7 @@ Persona 3 Portable, its characters, trademarks, and related intellectual propert
 
 This repository does not distribute copyrighted game files, game assets, or encryption keys. Users are responsible for providing their own legally obtained game files and complying with applicable laws.
 
-License
+LICENSE
 
 This project is distributed under the MIT License, subject to the licenses and notices of third-party components.
 
