@@ -210,7 +210,15 @@ uint32_t clears_apply(const Targets& t, VkRenderingAttachmentInfo* colors, VkRen
 bool transfer_clears() {
     static const bool on = [] {
 #if defined(__ANDROID__)
-        return std::getenv("NX_CLEARS_PASS") == nullptr;
+        // Explicit switches take priority for A/B tests. Transfer clears were measured on Adreno, where avoiding
+        // ~11 empty render passes per frame helped. On Mali (a tile-based GPU), keep whole-target clears as render-pass
+        // loadOps by default: a transfer clear can force tile data out to memory and back in. Do not generalize the
+        // Adreno result to other Vulkan vendors without a device-side measurement.
+        if (std::getenv("NX_CLEARS_PASS")) return false;
+        if (std::getenv("NX_CLEARS_TRANSFER")) return true;
+        VkPhysicalDeviceProperties props{};
+        p_vkGetPhysicalDeviceProperties(vk_physical(), &props);
+        return props.vendorID == 0x5143;  // Qualcomm: Adreno
 #else
         return std::getenv("NX_CLEARS_TRANSFER") != nullptr;
 #endif
