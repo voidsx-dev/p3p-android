@@ -280,9 +280,9 @@ public class Launcher extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
-                new String[] {"480p", "540p", "720p", "900p", "1080p"},
-                new String[] {"480p", "540p", "720p", "900p", "1080p"},
-                new String[] {"480p", "540p", "720p", "900p", "1080p"}, 2));
+        new String[] {"720p", "1080p"},
+        new String[] {"720p", "1080p"},
+        new String[] {"720p", "1080p"}, 0));
         options.add(new Option("NX_STRETCH", "Pantalla completa (estirar)", "Fullscreen (stretch)",
                 new String[] {"0", "1"},
                 new String[] {"Desactivada", "Activada"},
@@ -508,15 +508,12 @@ public class Launcher extends Activity {
         load();
         for (Option o : options) {
             String v = config.get(o.key);
-            if ("RESOLUTION".equals(o.key) && v == null) {
-                String hh = config.get("NX_HANDHELD");
-                if ("0".equals(hh)) v = "1080p";
-                else {
-                    String r = config.get("resolution");
-                    if (r != null && r.contains("360")) v = "360p";
-                    else if (r != null && r.contains("480")) v = "480p";
-                    else v = "720p";
-                }
+            if ("RESOLUTION".equals(o.key)) {
+    if ("1080p".equals(v) || "0".equals(config.get("NX_HANDHELD"))) {
+        v = "1080p";
+    } else {
+        v = "720p";
+    }
             }
             for (int k = 0; v != null && k < o.values.length; k++)
                 if (o.values[k].equals(v)) o.pick = k;
