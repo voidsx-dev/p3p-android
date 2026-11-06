@@ -99,6 +99,14 @@ Users must provide their own legally obtained copy of the game and are responsib
 
 Special thanks to the original project's contributors and everyone helping with testing and development.
 
+## Community & Support
+
+Need help, have questions, or want to share your gameplay?
+
+Join the P4G | Android Community Discord server to connect with other users, share your gameplay, discuss Android ports, and get community support.
+
+"Join our Discord Server" (https://discord.gg/yF6FtNK6rM)
+
 ## Disclaimer
 
 This is an unofficial, community-made project.
