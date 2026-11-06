@@ -400,6 +400,23 @@ public class Launcher extends Activity {
         });
         root.addView(edit);
 
+        // Mods manager: scans the existing mods/ folder and manages RomFS overlays.
+        header(root, t("Mods", "Mods"));
+        addRow(root, t("Gerenciador de mods", "Mod manager"), t("Abrir", "Open"),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        if (!hasAccess()) { askAccess(); return; }
+                        startActivity(new Intent(Launcher.this, ModManagerActivity.class));
+                    }
+                });
+
+        addRow(root, t("Diagnóstico do dispositivo", "Device diagnostics"), t("Abrir", "Open"),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
+                    }
+                });
+
         // Saves: in from a ZIP or a folder (a Switch backup or another player's), out to a ZIP in Download.
         LinearLayout saves = new LinearLayout(this);
         saves.setOrientation(LinearLayout.HORIZONTAL);
