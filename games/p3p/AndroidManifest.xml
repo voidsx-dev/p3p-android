@@ -6,8 +6,8 @@
      The recompiled build (analysis/ and the game's code compiled in) is private to the owner of the game. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.p3pandroid"
-    android:versionCode="8"
-    android:versionName="0.1.0">
+    android:versionCode="9"
+    android:versionName="0.2.0">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
@@ -39,6 +39,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- RomFS mod manager. -->
+        <activity
+            android:name=".ModManagerActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:screenOrientation="sensorLandscape" />
+        <!-- Read-only device, memory, GPU and game-data diagnostics. -->
+        <activity
+            android:name=".DiagnosticsActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:screenOrientation="sensorLandscape" />
         <!-- Prepares the game once: checks the player's NSP and keys and translates its shaders (libp3pimport.so with
              libspirvharness.so, the shader translator). Its own process, so the translator's runtime never shares
              the game's. -->
