@@ -22,7 +22,6 @@ import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
-import android.system.Os;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -45,7 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The home screen in front of the game (a NativeActivity, libp3p.so): checks for the player's data in Internal
+ * The home screen in front of the game (GameActivity, a NativeActivity in its own process, libp3p.so): checks for the player's data in Internal
  * storage/Persona 3 Portable (asking for all-files access), shows the options and writes them to that folder's
  * config.txt, whose NX_* lines the runtime turns into its switches:
  *   game text   the language of the game's texts and subtitles: always language=auto (the device's, English when
@@ -206,20 +205,17 @@ public class Launcher extends Activity {
         startActivityForResult(i, PREPARE);
     }
 
-    // The runtime reads the game from this descriptor (same process: the NativeActivity runs in the launcher's).
-    boolean openGameForRuntime() {
-        try {
-            ParcelFileDescriptor f = getContentResolver().openFileDescriptor(Uri.parse(gameUri()), "r");
-            if (f == null) return false;
-            Os.setenv("NX_GAME_FD", String.valueOf(f.detachFd()), true);
-            Os.setenv("NX_GAME_NAME", gameName(), true);
-            Os.setenv("NX_KEYS", keysFile(this, "prod.keys").getPath(), true);
-            File tk = keysFile(this, "title.keys");
-            if (tk.exists()) Os.setenv("NX_TITLE_KEYS", tk.getPath(), true);
-            return true;
-        } catch (Exception e) {
-            return false;
+    // Starts the game, in its own process (GameActivity): it gets the picked game file's Uri and opens it there. Checked
+    // here first, so a file that can no longer be read is told about instead of a game that closes.
+    boolean startGame(boolean fromFile) {
+        Intent game = new Intent(this, GameActivity.class);
+        if (fromFile) {
+            if (!gameReadable()) return false;
+            game.putExtra(GameActivity.EXTRA_URI, gameUri());
+            game.putExtra(GameActivity.EXTRA_NAME, gameName());
         }
+        startActivity(game);
+        return true;
     }
 
     // A home screen shortcut with the player's picture (cropped to a square; an adaptive icon, so the home screen gives
@@ -465,9 +461,9 @@ public class Launcher extends Activity {
                     if (!gameReadable()) pick(PICK_GAME, "*/*", false);
                     else if (!hasKeys()) pick(PICK_KEYS, "*/*", true);
                     else if (!prepared()) prepare();
-                    else if (openGameForRuntime()) {
+                    else if (gameReadable()) {
                         save();
-                        startActivity(new Intent(Launcher.this, android.app.NativeActivity.class));
+                        startGame(true);
                     } else {
                         tell(t("No se pudo abrir el juego", "The game could not be opened"), gameName());
                     }
@@ -482,7 +478,7 @@ public class Launcher extends Activity {
                     return;
                 }
                 save();
-                startActivity(new Intent(Launcher.this, android.app.NativeActivity.class));
+                startGame(false);
             }
         });
 

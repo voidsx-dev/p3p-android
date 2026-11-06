@@ -307,6 +307,15 @@ final class Lang {
                 "Aucune sauvegarde trouvée", "Keine Spielstände gefunden", "Nessun salvataggio trovato",
                 "Nenhum save encontrado", "セーブデータが見つかりません", "세이브를 찾을 수 없습니다",
                 "未找到存档", "找不到存檔");
+        // Quit confirmation (GameActivity)
+        put("Quit the game?", "Quitter le jeu ?", "Spiel beenden?", "Uscire dal gioco?", "Sair do jogo?",
+                "ゲームを終了しますか？", "게임을 종료할까요?", "退出游戏？", "結束遊戲？");
+        put("You will go back to the home screen.", "Vous reviendrez à l'écran d'accueil.",
+                "Du kehrst zum Startbildschirm zurück.", "Tornerai alla schermata iniziale.",
+                "Você voltará para a tela inicial.", "ホーム画面に戻ります。", "홈 화면으로 돌아갑니다.",
+                "将返回主界面。", "將返回主畫面。");
+        put("Yes", "Oui", "Ja", "Sì", "Sim", "はい", "예", "是", "是");
+        put("No", "Non", "Nein", "No", "Não", "いいえ", "아니요", "否", "否");
 
     }
 }
