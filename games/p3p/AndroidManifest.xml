@@ -56,9 +56,12 @@
             android:theme="@style/Fullscreen"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden" />
-        <!-- The game. Exported: test runs start it directly (games/p3p/tools/run_android.ps1). -->
+        <!-- The game: a NativeActivity (GameActivity: asks before quitting on Back) in its own process, so that the
+             runtime ending its process when the game closes leaves the launcher running. Exported: test runs start it
+             directly (tools/push_android.ps1). -->
         <activity
-            android:name="android.app.NativeActivity"
+            android:name=".GameActivity"
+            android:process=":game"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
