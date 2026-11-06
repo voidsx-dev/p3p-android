@@ -410,6 +410,7 @@ public final class ModManagerActivity extends Activity {
         actions.setGravity(Gravity.END);
         Button toggle = button(active ? "Desativar" : "Ativar");
         Button remove = button("Remover");
+        final String dialogDisplay = display;
         actions.addView(toggle);
         actions.addView(remove);
         card.addView(actions);
@@ -419,7 +420,7 @@ public final class ModManagerActivity extends Activity {
         remove.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 new AlertDialog.Builder(ModManagerActivity.this)
-                    .setTitle("Remover " + display + "?")
+                    .setTitle("Remover " + dialogDisplay + "?")
                     .setMessage("Somente os arquivos deste mod serão removidos.")
                     .setNegativeButton("Cancelar", null)
                     .setPositiveButton("Remover", new android.content.DialogInterface.OnClickListener() {
