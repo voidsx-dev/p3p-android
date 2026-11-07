@@ -74,12 +74,50 @@ jobs:
           & $sdkm "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358"
           if ($LASTEXITCODE) { throw "sdkmanager failed" }
 
-      - name: Debug keystore
+      - name: Restore or create persistent signing key
+        id: signing
+        shell: pwsh
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          $androidDir = "$env:USERPROFILE\.android"
+          New-Item -ItemType Directory -Force $androidDir | Out-Null
+          $keystorePath = Join-Path $androidDir "debug.keystore"
+
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_DEBUG_KEYSTORE_BASE64)) {
+            keytool -genkeypair -keystore $keystorePath -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+            if ($LASTEXITCODE) { throw "Could not generate signing key" }
+
+            $base64Path = Join-Path $env:RUNNER_TEMP "android-debug-keystore-base64.txt"
+            $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($keystorePath))
+            Set-Content -Path $base64Path -Value $base64 -NoNewline -Encoding ascii
+
+            "needs_secret=true" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            $bytes = [Convert]::FromBase64String($env:ANDROID_DEBUG_KEYSTORE_BASE64.Trim())
+            [IO.File]::WriteAllBytes($keystorePath, $bytes)
+
+            keytool -list -keystore $keystorePath -storepass android -alias androiddebugkey
+            if ($LASTEXITCODE) { throw "Stored signing key is invalid" }
+
+            "needs_secret=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Upload signing key setup
+        if: steps.signing.outputs.needs_secret == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3p-signing-key-setup
+          path: ${{ runner.temp }}/android-debug-keystore-base64.txt
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Stop until signing secret is configured
+        if: steps.signing.outputs.needs_secret == 'true'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force "$env:USERPROFILE\.android" | Out-Null
-          keytool -genkeypair -keystore "$env:USERPROFILE\.android\debug.keystore" -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -validity 10000
-          if ($LASTEXITCODE) { throw "keytool failed" }
+          throw "Signing key created. Download the p3p-signing-key-setup artifact and save its content as the repository secret ANDROID_DEBUG_KEYSTORE_BASE64. Then rerun this workflow."
 
       - name: Build the APK
         shell: powershell
