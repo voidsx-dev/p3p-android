@@ -20,13 +20,22 @@
 
 #include "kernel.h"
 #include "platform.h"
+#include "audio_fold.h"
 
 namespace nx {
 
 namespace {
 
 constexpr uint64_t kBytesPerSecond = 48000 * 2 * 2;
-constexpr uint32_t kMaxInFlight = 4;  // buffers queued in the device (4 x ~21 ms)
+constexpr uint32_t kMaxInFlight = 4;  // buffers queued in the device, at least (4 x ~21 ms with P5R's 1024-frame buffers)
+constexpr uint32_t kMinQueuedMs = 40;  // ...and at least this much sound: P3P's buffers are 240 frames (5 ms), where 4 left
+                                       // 20 ms and any scheduling hiccup of the phone ran the ring dry (clicks)
+// Buffers to keep queued for a buffer of `size` bytes (as the game submits it, before the fold).
+uint32_t max_in_flight(uint64_t size, uint32_t channels) {
+    const uint64_t frames = size / (2ull * std::max<uint32_t>(channels, 1));
+    const uint64_t ms = std::max<uint64_t>(frames * 1000 / 48000, 1);
+    return uint32_t(std::clamp<uint64_t>((kMinQueuedMs + ms - 1) / ms, kMaxInFlight, 16));
+}
 
 // Our AudioOutBuffer layout (only our HLE reads it): {void* data; u64 capacity; u64 size}.
 struct Out {
@@ -87,20 +96,12 @@ void player() {
     log("audio: %s", device ? "device output (48 kHz stereo s16)" : "no audio device, timer pacing");
     using clock = std::chrono::steady_clock;
     auto next = clock::now();
-    // Linked stereo peak limiter for the 5.1 -> stereo fold-down. Attack is immediate; release is
-    // smoothed over 50 ms so isolated peaks do not clip and gain does not jump between samples.
-    // It is only applied to multichannel AudioOut; native stereo is passed through unchanged.
-    constexpr float kDownmixCeiling = 30000.0f;
-    constexpr float kLimiterRelease = 0.99958342f;  // exp(-1 / (48 kHz * 50 ms))
-    float limiter_gain = 1.0f;
-    uint64_t downmix_buffers = 0, limited_frames = 0;
-    int downmix_peak = 0;
     for (;;) {
         uint64_t buf = 0, size = 0;
         {
             std::unique_lock lk(g_out.lock);
             auto ready = [&] {
-                return g_out.started && !g_out.queued.empty() && (!device || plat::audio_queued() < kMaxInFlight);
+                return g_out.started && !g_out.queued.empty() && (!device || plat::audio_queued() < max_in_flight(ld<uint64_t>(g_out.queued.front() + 16), g_out.channels));
             };
             g_out.cv.wait_for(lk, std::chrono::milliseconds(5), ready);
             if (!ready()) continue;
@@ -109,41 +110,11 @@ void player() {
             size = ld<uint64_t>(buf + 16);
         }
         uint64_t out_size = size;
-        if (g_out.channels > 2) {  // fold to stereo in place (the game refills the buffer every time)
+        if (g_out.channels > 2) {  // fold to stereo in place (the game refills the buffer every time), limited: no clipping
+            static nx::PeakLimiter limiter;  // only the player thread folds
             int16_t* pcm = reinterpret_cast<int16_t*>(ld<uint64_t>(buf));
-            const uint32_t ch = g_out.channels;
-            const uint64_t frames = size / (2ull * ch);
-            for (uint64_t i = 0; i < frames; i++) {
-                const int16_t* f = pcm + i * ch;
-                float l = float(f[0]), r = float(f[1]);
-                if (ch >= 6) {  // standard 5.1 order: FL FR FC LFE SL SR; LFE is intentionally not folded in
-                    constexpr float kCenter = 0.70710678f;
-                    constexpr float kSurround = 0.70710678f;
-                    l += float(f[2]) * kCenter + float(f[4]) * kSurround;
-                    r += float(f[2]) * kCenter + float(f[5]) * kSurround;
-                }
-
-                // Apply one shared gain to both channels to preserve stereo balance. Immediate
-                // attack prevents digital clipping; gradual release avoids audible gain pumping.
-                const float peak = std::max(std::abs(l), std::abs(r));
-                if (peak > kDownmixCeiling) {
-                    limiter_gain = std::min(limiter_gain, kDownmixCeiling / peak);
-                    ++limited_frames;
-                } else {
-                    limiter_gain += (1.0f - limiter_gain) * (1.0f - kLimiterRelease);
-                }
-                const int out_l = int(std::lrint(l * limiter_gain));
-                const int out_r = int(std::lrint(r * limiter_gain));
-                pcm[2 * i] = int16_t(std::clamp(out_l, -32768, 32767));
-                pcm[2 * i + 1] = int16_t(std::clamp(out_r, -32768, 32767));
-                downmix_peak = std::max(downmix_peak, std::max(std::abs(int(pcm[2 * i])), std::abs(int(pcm[2 * i + 1]))));
-            }
-            if (++downmix_buffers % 1000 == 0) {
-                log("audio: 5.1 downmix: output peak %d, limiter triggered on %llu frames / last 1000 buffers",
-                    downmix_peak, (unsigned long long)limited_frames);
-                downmix_peak = 0;
-                limited_frames = 0;
-            }
+            const uint64_t frames = size / (2ull * g_out.channels);
+            nx::fold_to_stereo(pcm, frames, g_out.channels, limiter, pcm);
             out_size = frames * 4;
         }
         if (device && plat::audio_submit(reinterpret_cast<const void*>(ld<uint64_t>(buf)), out_size,
