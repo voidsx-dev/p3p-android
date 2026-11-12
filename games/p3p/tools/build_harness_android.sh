@@ -7,11 +7,24 @@ if ! command -v patch >/dev/null || ! command -v unzip >/dev/null || ! command -
     apt-get update -qq
     apt-get install -y -qq patch unzip spirv-tools
 fi
+# Downloads: the NDK is ~690 MB and dl.google.com sometimes drops an HTTP/2 stream half-way (curl 92), which plain
+# --retry does not retry. HTTP/1.1, every error retried, and each retry resumes the partial file (-C -).
+fetch() {  # fetch <output> <url>
+    local n
+    for n in 1 2 3 4 5; do
+        if curl --fail --location --http1.1 --connect-timeout 30 --retry 3 --retry-all-errors --retry-delay 5 -C - -o "$1" "$2"; then
+            return 0
+        fi
+        echo "download of $2 failed (attempt $n of 5), retrying" >&2
+        sleep $((n * 5))
+    done
+    return 1
+}
 NDK="$ROOT/private/third_party/android-ndk-r28c-linux"
 if [ ! -d "$NDK" ]; then
     temp_ndk="$(mktemp -d)"
     trap 'rm -rf "$temp_ndk"' EXIT
-    curl --fail --location --retry 3 -o "$temp_ndk/ndk.zip" https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+    fetch "$temp_ndk/ndk.zip" https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
     unzip -q "$temp_ndk/ndk.zip" -d "$temp_ndk"
     mkdir -p private/third_party
     mv "$temp_ndk/android-ndk-r28c" "$NDK"
@@ -20,7 +33,7 @@ ARCHIVE=private/third_party/ryubing-a82350bb77.tar.gz
 SOURCE=private/third_party/ryubing
 mkdir -p private/third_party
 if [ ! -f "$ARCHIVE" ]; then
-    curl --fail --location --retry 3 -o "$ARCHIVE" https://codeberg.org/Software_arch/Ryubing/archive/a82350bb77.tar.gz
+    fetch "$ARCHIVE" https://codeberg.org/Software_arch/Ryubing/archive/a82350bb77.tar.gz
 fi
 echo "aba9789bdcf3fda9e90f965636e9e85e9dcc299333fbf5451bcf22ecfd608506  $ARCHIVE" | sha256sum --check
 if [ ! -d "$SOURCE" ]; then
