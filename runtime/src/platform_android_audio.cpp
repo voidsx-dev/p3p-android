@@ -31,6 +31,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #define VK_NO_PROTOTYPES
@@ -75,6 +76,15 @@ std::atomic<uint32_t> g_floor_frames{0};
 constexpr uint32_t kFloorStep = 480, kFloorMax = 4800;
 AudioDone g_done = nullptr;
 AAudioStream* g_stream = nullptr;
+// Headphones plugged or unplugged (or any route change) make AAudio disconnect the stream: no more callbacks, no sound
+// until a new stream is opened on the new route. The error callback starts that on a thread of its own (a stream
+// cannot be closed from its own callbacks). While there is no stream, audio_submit says so and the caller paces the
+// buffers itself, so the game keeps running (silent) until the new stream is up.
+std::mutex g_stream_mu;                  // g_stream: the reopen thread's swap, against audio_pause and the latency measure
+std::atomic<bool> g_have_stream{false};  // a stream is open and running (audio_submit)
+std::atomic<bool> g_reopening{false};
+std::atomic<bool> g_paused{false};       // the app is in the background
+std::atomic<int> g_cb_windows{0};        // stats windows since the stream opened (the first one is not judged)
 // Per ~2 s, logged from the callback: how the device pulls (callbacks, frames per call) and how often the game's
 // buffers ran out (underruns: silence played, and the game's buffers come back late, its clock stalls).
 struct CbStats {
@@ -97,8 +107,8 @@ void cb_stats(int32_t frames, size_t missing_bytes) {
                 "%.0f ms of silence", (unsigned long long)s.calls, double(now - s.from_ns) / 1e9, s.min_frames,
                 s.max_frames, double(s.max_gap_ns) / 1e6, (unsigned long long)s.underruns,
                 double(s.silent_frames) / 48.0);
-    static int windows = 0;  // the first window is the boot's loading: no judgement from it
-    if (windows++ && s.underruns) {
+    // the stream's first window is the boot's loading (or the reopen's gap): no judgement from it
+    if (g_cb_windows.fetch_add(1, std::memory_order_relaxed) && s.underruns) {
         const uint32_t f = g_floor_frames.load(std::memory_order_relaxed);
         if (f < kFloorMax) {
             g_floor_frames.store(std::min(f + kFloorStep, kFloorMax), std::memory_order_relaxed);
@@ -134,10 +144,17 @@ aaudio_data_callback_result_t audio_cb(AAudioStream*, void*, void* out, int32_t 
 }
 }  // namespace
 
-bool audio_open(AudioDone done) {
-    g_done = done;
-    // NX_MUTE=1 (and headless test runs): no device, the callers pace themselves with a timer (as on Windows and macOS).
-    if (headless() || std::getenv("NX_MUTE")) return false;
+static bool open_stream();
+static void start_reopen();
+
+static void audio_err(AAudioStream*, void*, aaudio_result_t error) {
+    nx::log("audio: stream error %d (%s): opening a new stream", int(error),
+            error == AAUDIO_ERROR_DISCONNECTED ? "disconnected, the output changed" : "other");
+    start_reopen();
+}
+
+// Opens and starts a stream on the current default output into g_stream (g_stream_mu held, or nothing else running).
+static bool open_stream() {
     AAudioStreamBuilder* b = nullptr;
     if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) return false;
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_I16);
@@ -153,30 +170,80 @@ bool audio_open(AudioDone done) {
     AAudioStreamBuilder_setPerformanceMode(b, mode);
     AAudioStreamBuilder_setUsage(b, AAUDIO_USAGE_GAME);
     AAudioStreamBuilder_setDataCallback(b, audio_cb, nullptr);
-    bool ok = AAudioStreamBuilder_openStream(b, &g_stream) == AAUDIO_OK && AAudioStream_requestStart(g_stream) == AAUDIO_OK;
+    AAudioStreamBuilder_setErrorCallback(b, audio_err, nullptr);
+    AAudioStream* st = nullptr;
+    bool ok = AAudioStreamBuilder_openStream(b, &st) == AAUDIO_OK;
     AAudioStreamBuilder_delete(b);
-    if (ok) {
-        // The device asks for whatever its buffer has free: on the fallback path (burst 960, buffer 11724 frames) that
-        // meant tiny pulls all the time and a ring that never held enough. 4 bursts keep the pulls regular.
-        const int32_t burst = std::max<int32_t>(AAudioStream_getFramesPerBurst(g_stream), 128);
-        AAudioStream_setBufferSizeInFrames(g_stream, std::min<int32_t>(burst * 4, AAudioStream_getBufferCapacityInFrames(g_stream)));
-        g_floor_frames.store(uint32_t(burst), std::memory_order_relaxed);
-        nx::log("audio: sound queued %u ms ahead at least (one device burst), device buffer %d frames", uint32_t(burst) / 48,
-                int(AAudioStream_getBufferSizeInFrames(g_stream)));
+    if (!ok) return false;
+    // The device asks for whatever its buffer has free: on the fallback path (burst 960, buffer 11724 frames) that
+    // meant tiny pulls all the time and a ring that never held enough. 4 bursts keep the pulls regular.
+    const int32_t burst = std::max<int32_t>(AAudioStream_getFramesPerBurst(st), 128);
+    AAudioStream_setBufferSizeInFrames(st, std::min<int32_t>(burst * 4, AAudioStream_getBufferCapacityInFrames(st)));
+    g_floor_frames.store(uint32_t(burst), std::memory_order_relaxed);  // per route: headphones have bigger bursts
+    nx::log("audio: sound queued %u ms ahead at least (one device burst), device buffer %d frames", uint32_t(burst) / 48,
+            int(AAudioStream_getBufferSizeInFrames(st)));
+    nx::log("audio: AAudio stream: %d frames per burst, buffer %d of %d frames, performance mode %d",
+            int(AAudioStream_getFramesPerBurst(st)), int(AAudioStream_getBufferSizeInFrames(st)),
+            int(AAudioStream_getBufferCapacityInFrames(st)), int(AAudioStream_getPerformanceMode(st)));
+    g_stream = st;
+    if (AAudioStream_requestStart(st) != AAUDIO_OK) {
+        AAudioStream_close(st);
+        g_stream = nullptr;
+        return false;
     }
-    if (ok)
-        nx::log("audio: AAudio stream: %d frames per burst, buffer %d of %d frames, performance mode %d",
-                int(AAudioStream_getFramesPerBurst(g_stream)), int(AAudioStream_getBufferSizeInFrames(g_stream)),
-                int(AAudioStream_getBufferCapacityInFrames(g_stream)), int(AAudioStream_getPerformanceMode(g_stream)));
-    return ok;
+    if (g_paused.load()) AAudioStream_requestPause(st);
+    g_have_stream.store(true, std::memory_order_release);
+    return true;
+}
+
+// Thread: closes the dead stream and opens a new one, retrying until the new route is there (a plugged-in headset
+// can take a moment to show up as the default output).
+static void reopen_stream() {
+    for (int attempt = 1;; attempt++) {
+        {
+            std::lock_guard lk(g_stream_mu);
+            if (g_stream) AAudioStream_close(g_stream);
+            g_stream = nullptr;
+            {
+                std::lock_guard a(g_audio);
+                g_device = 0;  // AAudio's frame count starts over with the new stream (measure_latency)
+            }
+            g_latency_ns.store(0, std::memory_order_relaxed);
+            g_cb = {};
+            g_cb_windows.store(0, std::memory_order_relaxed);
+            if (open_stream()) {
+                nx::log("audio: new stream running (attempt %d)", attempt);
+                g_reopening.store(false);
+                return;
+            }
+        }
+        if (attempt == 1 || attempt % 20 == 0) nx::log("audio: no stream yet (attempt %d), trying again", attempt);
+        std::this_thread::sleep_for(std::chrono::milliseconds(attempt < 20 ? 250 : 1000));
+    }
+}
+
+static void start_reopen() {
+    g_have_stream.store(false, std::memory_order_release);
+    if (g_reopening.exchange(true)) return;  // one at a time
+    std::thread(reopen_stream).detach();
+}
+
+bool audio_open(AudioDone done) {
+    g_done = done;
+    // NX_MUTE=1 (and headless test runs): no device, the callers pace themselves with a timer (as on Windows and macOS).
+    if (headless() || std::getenv("NX_MUTE")) return false;
+    std::lock_guard lk(g_stream_mu);
+    return open_stream();
 }
 
 void audio_pause(bool paused) {
-    if (!g_stream) return;
+    g_paused.store(paused);
+    std::lock_guard lk(g_stream_mu);
+    if (!g_stream) return;  // being reopened: the new stream follows g_paused
     if (paused)
         AAudioStream_requestPause(g_stream);
-    else
-        AAudioStream_requestStart(g_stream);
+    else if (AAudioStream_requestStart(g_stream) != AAUDIO_OK)  // the route changed while in the background
+        start_reopen();
 }
 
 // When the buffer starting at ring position `start` reaches the speaker: AAudio's last timestamp (a frame the device
@@ -186,7 +253,10 @@ static void measure_latency(uint64_t start, uint64_t read, uint64_t device) {
     static uint32_t n = 0;
     if (n++ % 8) return;
     int64_t pos = 0, at = 0;
+    std::unique_lock lk(g_stream_mu, std::try_to_lock);  // not while a reopen holds it
+    if (!lk || !g_stream) return;
     if (AAudioStream_getTimestamp(g_stream, CLOCK_MONOTONIC, &pos, &at) != AAUDIO_OK || at <= 0) return;
+    lk.unlock();
     const int64_t frame = int64_t(device + (start - read));  // the device's index of the buffer's first frame
     const int64_t when = at + (frame - pos) * 1000000000ll / 48000;
     const int64_t now = int64_t(monotonic_ns());
@@ -196,7 +266,7 @@ static void measure_latency(uint64_t start, uint64_t read, uint64_t device) {
 }
 
 bool audio_submit(const void* data, size_t bytes, void* ctx) {
-    if (!g_stream) return false;
+    if (!g_have_stream.load(std::memory_order_acquire)) return false;  // no stream (being reopened): the caller paces
     uint64_t start, read, device;
     std::vector<void*> finished;
     {
