@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cerrno>
 #include <cmath>
@@ -68,6 +69,7 @@ std::deque<Pending> g_pending;
 std::atomic<uint32_t> g_delay_frames{0};
 AudioDone g_done = nullptr;
 AAudioStream* g_stream = nullptr;
+bool g_audio_stats_enabled = false;
 // Per ~2 s, logged from the callback: how the device pulls (callbacks, frames per call) and how often the game's
 // buffers ran out (underruns: silence played, and the game's buffers come back late, its clock stalls).
 struct CbStats {
@@ -85,7 +87,9 @@ void cb_stats(int32_t frames, size_t missing_bytes) {
     s.min_frames = std::min(s.min_frames, frames), s.max_frames = std::max(s.max_frames, frames);
     if (missing_bytes) s.underruns++, s.silent_frames += missing_bytes / 4;
     if (now - s.from_ns < 2'000'000'000ull) return;
-    if (s.underruns || std::getenv("NX_AUDIO_STATS"))
+    // Do not log from AAudio's real-time callback: logging can block and create the very
+    // callback gaps we are measuring. Enable diagnostics explicitly with NX_AUDIO_STATS=1.
+    if (g_audio_stats_enabled)
         nx::log("audio: device pulled %llu times in %.1f s (%d..%d frames, longest %.1f ms apart); %llu underruns, "
                 "%.0f ms of silence", (unsigned long long)s.calls, double(now - s.from_ns) / 1e9, s.min_frames,
                 s.max_frames, double(s.max_gap_ns) / 1e6, (unsigned long long)s.underruns,
@@ -97,7 +101,10 @@ void cb_stats(int32_t frames, size_t missing_bytes) {
 aaudio_data_callback_result_t audio_cb(AAudioStream*, void*, void* out, int32_t frames) {
     auto* dst = static_cast<uint32_t*>(out);
     size_t missing = 0;
-    std::vector<void*> finished;
+    // AAudio callbacks run on a real-time thread. Keep completion bookkeeping on the stack
+    // rather than allocating a vector on every callback. At most four buffers are in flight.
+    std::array<void*, 8> finished{};
+    size_t finished_count = 0;
     {
         std::lock_guard lk(g_audio);
         const uint64_t n = std::min<uint64_t>(uint64_t(frames), g_written - g_read);
@@ -108,18 +115,20 @@ aaudio_data_callback_result_t audio_cb(AAudioStream*, void*, void* out, int32_t 
         if (missing) std::memset(dst + n, 0, missing * 4);  // underrun: silence
         const uint64_t due = g_read + g_delay_frames.load(std::memory_order_relaxed);
         while (!g_pending.empty() && g_pending.front().end <= due) {
-            finished.push_back(g_pending.front().ctx);
+            if (finished_count < finished.size())
+                finished[finished_count++] = g_pending.front().ctx;
             g_pending.pop_front();
         }
     }
     cb_stats(frames, missing * 4);
-    for (void* c : finished) g_done(c);
+    for (size_t i = 0; i < finished_count; ++i) g_done(finished[i]);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 }  // namespace
 
 bool audio_open(AudioDone done) {
     g_done = done;
+    g_audio_stats_enabled = std::getenv("NX_AUDIO_STATS") != nullptr;
     // NX_MUTE=1 (and headless test runs): no device, the callers pace themselves with a timer (as on Windows and macOS).
     if (headless() || std::getenv("NX_MUTE")) return false;
     AAudioStreamBuilder* b = nullptr;
