@@ -87,6 +87,14 @@ void player() {
     log("audio: %s", device ? "device output (48 kHz stereo s16)" : "no audio device, timer pacing");
     using clock = std::chrono::steady_clock;
     auto next = clock::now();
+    // Linked stereo peak limiter for the 5.1 -> stereo fold-down. Attack is immediate; release is
+    // smoothed over 50 ms so isolated peaks do not clip and gain does not jump between samples.
+    // It is only applied to multichannel AudioOut; native stereo is passed through unchanged.
+    constexpr float kDownmixCeiling = 30000.0f;
+    constexpr float kLimiterRelease = 0.99958342f;  // exp(-1 / (48 kHz * 50 ms))
+    float limiter_gain = 1.0f;
+    uint64_t downmix_buffers = 0, limited_frames = 0;
+    int downmix_peak = 0;
     for (;;) {
         uint64_t buf = 0, size = 0;
         {
@@ -107,13 +115,34 @@ void player() {
             const uint64_t frames = size / (2ull * ch);
             for (uint64_t i = 0; i < frames; i++) {
                 const int16_t* f = pcm + i * ch;
-                int l = f[0], r = f[1];
-                if (ch >= 6) {  // FL FR FC LFE RL RR
-                    l += (f[2] * 707 + f[4] * 707) / 1000;
-                    r += (f[2] * 707 + f[5] * 707) / 1000;
+                float l = float(f[0]), r = float(f[1]);
+                if (ch >= 6) {  // standard 5.1 order: FL FR FC LFE SL SR; LFE is intentionally not folded in
+                    constexpr float kCenter = 0.70710678f;
+                    constexpr float kSurround = 0.70710678f;
+                    l += float(f[2]) * kCenter + float(f[4]) * kSurround;
+                    r += float(f[2]) * kCenter + float(f[5]) * kSurround;
                 }
-                pcm[2 * i] = int16_t(std::clamp(l, -32768, 32767));
-                pcm[2 * i + 1] = int16_t(std::clamp(r, -32768, 32767));
+
+                // Apply one shared gain to both channels to preserve stereo balance. Immediate
+                // attack prevents digital clipping; gradual release avoids audible gain pumping.
+                const float peak = std::max(std::abs(l), std::abs(r));
+                if (peak > kDownmixCeiling) {
+                    limiter_gain = std::min(limiter_gain, kDownmixCeiling / peak);
+                    ++limited_frames;
+                } else {
+                    limiter_gain += (1.0f - limiter_gain) * (1.0f - kLimiterRelease);
+                }
+                const int out_l = int(std::lrint(l * limiter_gain));
+                const int out_r = int(std::lrint(r * limiter_gain));
+                pcm[2 * i] = int16_t(std::clamp(out_l, -32768, 32767));
+                pcm[2 * i + 1] = int16_t(std::clamp(out_r, -32768, 32767));
+                downmix_peak = std::max(downmix_peak, std::max(std::abs(int(pcm[2 * i])), std::abs(int(pcm[2 * i + 1]))));
+            }
+            if (++downmix_buffers % 1000 == 0) {
+                log("audio: 5.1 downmix: output peak %d, limiter triggered on %llu frames / last 1000 buffers",
+                    downmix_peak, (unsigned long long)limited_frames);
+                downmix_peak = 0;
+                limited_frames = 0;
             }
             out_size = frames * 4;
         }
