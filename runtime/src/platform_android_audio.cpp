@@ -66,6 +66,13 @@ uint64_t g_device = 0;                      // frames the callback gave the devi
 std::atomic<uint64_t> g_latency_ns{0};      // audio_latency_ns
 std::deque<Pending> g_pending;
 std::atomic<uint32_t> g_delay_frames{0};
+// The game keeps only ~3 buffers (15 ms) in its AudioOut queue and gets one back when the device has played it. A
+// device that pulls a big burst at once (headphones: AAudio fell back to performance mode 10 with 960-frame bursts)
+// finds the ring shorter than the burst and gets silence in the middle of the sound (the crackle). So buffers are
+// handed back at least g_floor_frames early (the same mechanism as the A/V delay: the game queues that much more
+// ahead): the burst at first, raised by 10 ms each time a 2 s window still had underruns, never lowered, at most 100 ms.
+std::atomic<uint32_t> g_floor_frames{0};
+constexpr uint32_t kFloorStep = 480, kFloorMax = 4800;
 AudioDone g_done = nullptr;
 AAudioStream* g_stream = nullptr;
 // Per ~2 s, logged from the callback: how the device pulls (callbacks, frames per call) and how often the game's
@@ -90,6 +97,15 @@ void cb_stats(int32_t frames, size_t missing_bytes) {
                 "%.0f ms of silence", (unsigned long long)s.calls, double(now - s.from_ns) / 1e9, s.min_frames,
                 s.max_frames, double(s.max_gap_ns) / 1e6, (unsigned long long)s.underruns,
                 double(s.silent_frames) / 48.0);
+    static int windows = 0;  // the first window is the boot's loading: no judgement from it
+    if (windows++ && s.underruns) {
+        const uint32_t f = g_floor_frames.load(std::memory_order_relaxed);
+        if (f < kFloorMax) {
+            g_floor_frames.store(std::min(f + kFloorStep, kFloorMax), std::memory_order_relaxed);
+            nx::log("audio: underruns persist: sound queued %u ms ahead (was %u)", std::min(f + kFloorStep, kFloorMax) / 48,
+                    f / 48);
+        }
+    }
     s = {};
     s.from_ns = s.last_ns = now;
 }
@@ -106,7 +122,7 @@ aaudio_data_callback_result_t audio_cb(AAudioStream*, void*, void* out, int32_t 
         g_device += uint64_t(frames);
         missing = size_t(frames) - size_t(n);
         if (missing) std::memset(dst + n, 0, missing * 4);  // underrun: silence
-        const uint64_t due = g_read + g_delay_frames.load(std::memory_order_relaxed);
+        const uint64_t due = g_read + std::max(g_delay_frames.load(std::memory_order_relaxed), g_floor_frames.load(std::memory_order_relaxed));
         while (!g_pending.empty() && g_pending.front().end <= due) {
             finished.push_back(g_pending.front().ctx);
             g_pending.pop_front();
@@ -139,6 +155,15 @@ bool audio_open(AudioDone done) {
     AAudioStreamBuilder_setDataCallback(b, audio_cb, nullptr);
     bool ok = AAudioStreamBuilder_openStream(b, &g_stream) == AAUDIO_OK && AAudioStream_requestStart(g_stream) == AAUDIO_OK;
     AAudioStreamBuilder_delete(b);
+    if (ok) {
+        // The device asks for whatever its buffer has free: on the fallback path (burst 960, buffer 11724 frames) that
+        // meant tiny pulls all the time and a ring that never held enough. 4 bursts keep the pulls regular.
+        const int32_t burst = std::max<int32_t>(AAudioStream_getFramesPerBurst(g_stream), 128);
+        AAudioStream_setBufferSizeInFrames(g_stream, std::min<int32_t>(burst * 4, AAudioStream_getBufferCapacityInFrames(g_stream)));
+        g_floor_frames.store(uint32_t(burst), std::memory_order_relaxed);
+        nx::log("audio: sound queued %u ms ahead at least (one device burst), device buffer %d frames", uint32_t(burst) / 48,
+                int(AAudioStream_getBufferSizeInFrames(g_stream)));
+    }
     if (ok)
         nx::log("audio: AAudio stream: %d frames per burst, buffer %d of %d frames, performance mode %d",
                 int(AAudioStream_getFramesPerBurst(g_stream)), int(AAudioStream_getBufferSizeInFrames(g_stream)),
@@ -173,6 +198,7 @@ static void measure_latency(uint64_t start, uint64_t read, uint64_t device) {
 bool audio_submit(const void* data, size_t bytes, void* ctx) {
     if (!g_stream) return false;
     uint64_t start, read, device;
+    std::vector<void*> finished;
     {
         std::lock_guard lk(g_audio);
         start = g_written, read = g_read, device = g_device;
@@ -181,8 +207,18 @@ bool audio_submit(const void* data, size_t bytes, void* ctx) {
         for (uint64_t k = 0; k < n; k++) std::memcpy(&g_ring[(g_written + k) % kRingFrames], src + 4 * k, 4);
         g_written += n;
         g_pending.push_back({g_written, ctx});
+        // Buffers already due (the floor / A/V delay reaches past what the ring holds) go back now, not at the next
+        // device pull: a ring that a big pull emptied is otherwise refilled only to the game's own 3 buffers, and the
+        // next pull is short again. The data is already copied into the ring, the game may reuse the buffer.
+        const uint64_t due = g_read + std::max(g_delay_frames.load(std::memory_order_relaxed),
+                                               g_floor_frames.load(std::memory_order_relaxed));
+        while (!g_pending.empty() && g_pending.front().end <= due) {
+            finished.push_back(g_pending.front().ctx);
+            g_pending.pop_front();
+        }
     }
     measure_latency(start, read, device);
+    for (void* c : finished) g_done(c);
     return true;
 }
 

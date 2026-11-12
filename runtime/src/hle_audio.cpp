@@ -309,7 +309,7 @@ constexpr uint32_t kMaxQueued = 12;  // 60 ms in the device queue: past that, fr
 constexpr size_t kPrime = 4;         // after an underrun, 20 ms are gathered before playing again
 
 struct RenderOut {
-    std::mutex lock;
+    std::recursive_mutex lock;  // audio_submit (render thread, lock held) may hand a block back at once: render_block_done
     int32_t mix[kFrame * 2] = {};
     bool mixed = false;
     int16_t blocks[kBlocks][kFrame * 2];
