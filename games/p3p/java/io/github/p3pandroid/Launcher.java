@@ -78,6 +78,7 @@ public class Launcher extends Activity {
         final String key, es, en;
         final String[] values, labelsEs, labelsEn;
         int pick;
+        final List<TextView> pills = new ArrayList<>();  // the choices on screen (build())
 
         Option(String key, String es, String en, String[] values, String[] labelsEs, String[] labelsEn, int pick) {
             this.key = key;
@@ -319,86 +320,81 @@ public class Launcher extends Activity {
         refresh();
     }
 
+    String versionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     void build() {
+        final LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setBackground(Ui.background());
+        // Android 15 draws apps behind the system bars: keep the content and the Play button clear of them.
+        outer.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets in) {
+                v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(),
+                        in.getSystemWindowInsetBottom());
+                return in;
+            }
+        });
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(5, 12, 30));
-        int pad = dp(24);
-        root.setPadding(pad, pad, pad, pad);
+        root.setPadding(dp(20), dp(24), dp(20), dp(24));
 
         TextView title = new TextView(this);
         title.setText("PERSONA 3 PORTABLE");
-        title.setTextColor(Color.rgb(40, 120, 230));
-        title.setTextSize(30);
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(26);
         title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setLetterSpacing(0.04f);
         root.addView(title);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Android recomp  \u2022  v" + versionName());
+        subtitle.setTextColor(Ui.ACCENT);
+        subtitle.setTextSize(13);
+        subtitle.setTypeface(Ui.medium());
+        subtitle.setPadding(0, dp(2), 0, 0);
+        root.addView(subtitle);
 
         status = new TextView(this);
-        status.setTextColor(Color.rgb(220, 220, 220));
-        status.setTextSize(14);
-        status.setPadding(0, dp(6), 0, dp(14));
-        root.addView(status);
+        status.setTextColor(Ui.TEXT);
+        status.setTextSize(14.5f);
+        status.setLineSpacing(0, 1.1f);
+        Ui.card(this, root).addView(status);
 
-        header(root, t("Archivos del juego", "Game files"));
-        addRow(root, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
+        LinearLayout files = section(root, t("Archivos del juego", "Game files"), null);
+        addRow(files, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
                 new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         pick(PICK_GAME, "*/*", false);
                     }
                 });
-        addRow(root, t("Claves (prod.keys)", "Keys (prod.keys)"), t("Elegir", "Choose"), new View.OnClickListener() {
+        addRow(files, t("Claves (prod.keys)", "Keys (prod.keys)"), t("Elegir", "Choose"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 pick(PICK_KEYS, "*/*", true);
             }
         });
 
+        // The options, a card per section; every choice is on screen at once (one tap, no cycling).
+        LinearLayout card = files;
         for (final Option o : options) {
             String[] section = sectionOf(o.key);
-            if (section != null) header(root, t(section[0], section[1]));
-            String[] advice = hintOf(o.key);
-            if (advice != null) hint(root, t(advice[0], advice[1]));
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(4), 0, dp(4));
-            TextView name = new TextView(this);
-            name.setText(t(o.es, o.en));
-            name.setTextColor(Color.WHITE);
-            name.setTextSize(17);
-            row.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-            final Button value = new Button(this);
-            value.setAllCaps(false);
-            value.setMinWidth(dp(180));
-            row.addView(value);
-            value.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    o.pick = (o.pick + 1) % o.values.length;
-                    value.setText(label(o));
-                    save();
-                }
-            });
-            value.setTag(o);
-            root.addView(row);
+            if (section != null) {
+                String[] advice = hintOf(o.key);
+                card = section(root, t(section[0], section[1]), advice == null ? null : t(advice[0], advice[1]));
+            }
+            card.addView(optionBlock(o));
         }
 
-        LinearLayout edit = new LinearLayout(this);
-        edit.setOrientation(LinearLayout.HORIZONTAL);
-        edit.setGravity(Gravity.CENTER_VERTICAL);
-        edit.setPadding(0, dp(4), 0, dp(4));
-        TextView editName = new TextView(this);
-        editName.setText(t("Posición de los controles", "Controls position"));
-        editName.setTextColor(Color.WHITE);
-        editName.setTextSize(17);
-        edit.addView(editName, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        Button editButton = new Button(this);
-        editButton.setAllCaps(false);
-        editButton.setMinWidth(dp(180));
-        editButton.setText(t("Mover", "Move"));
-        edit.addView(editButton);
-        editButton.setOnClickListener(new View.OnClickListener() {
+        // Still in the Controls card: where the buttons are.
+        addRow(card, t("Posición de los controles", "Controls position"), t("Mover", "Move"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -409,46 +405,35 @@ public class Launcher extends Activity {
                 startActivity(new Intent(Launcher.this, ControlsEditor.class));
             }
         });
-        root.addView(edit);
 
         // Mods manager: scans the existing mods/ folder and manages RomFS overlays.
-        header(root, t("Mods", "Mods"));
-        addRow(root, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"),
+        LinearLayout tools = section(root, t("Herramientas", "Tools"), null);
+        addRow(tools, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"), new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!hasAccess()) {
+                    askAccess();
+                    return;
+                }
+                startActivity(new Intent(Launcher.this, ModManagerActivity.class));
+            }
+        });
+        addRow(tools, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
                 new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        if (!hasAccess()) { askAccess(); return; }
-                        startActivity(new Intent(Launcher.this, ModManagerActivity.class));
-                    }
-                });
-
-        addRow(root, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
-                new View.OnClickListener() {
-                    @Override public void onClick(View v) {
+                    @Override
+                    public void onClick(View v) {
                         startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
                     }
                 });
 
         // Saves: in from a ZIP or a folder (a Switch backup or another player's), out to a ZIP in Download.
-        LinearLayout saves = new LinearLayout(this);
-        saves.setOrientation(LinearLayout.HORIZONTAL);
-        saves.setGravity(Gravity.CENTER_VERTICAL);
-        saves.setPadding(0, dp(4), 0, dp(4));
-        TextView savesName = new TextView(this);
-        savesName.setText(t("Partidas guardadas", "Saves"));
-        savesName.setTextColor(Color.WHITE);
-        savesName.setTextSize(17);
-        saves.addView(savesName, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        Button importButton = new Button(this);
-        importButton.setAllCaps(false);
-        importButton.setMinWidth(dp(88));
-        importButton.setText(t("Importar", "Import"));
-        saves.addView(importButton);
-        Button exportButton = new Button(this);
-        exportButton.setAllCaps(false);
-        exportButton.setMinWidth(dp(88));
-        exportButton.setText(t("Exportar", "Export"));
-        saves.addView(exportButton);
-        importButton.setOnClickListener(new View.OnClickListener() {
+        LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
+        LinearLayout saveButtons = new LinearLayout(this);
+        saveButtons.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        right.leftMargin = dp(8);
+        saveButtons.addView(Ui.action(this, t("Importar", "Import"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -457,8 +442,8 @@ public class Launcher extends Activity {
                 }
                 askImport();
             }
-        });
-        exportButton.setOnClickListener(new View.OnClickListener() {
+        }), left);
+        saveButtons.addView(Ui.action(this, t("Exportar", "Export"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -467,17 +452,11 @@ public class Launcher extends Activity {
                 }
                 exportSaves();
             }
-        });
-        root.addView(saves);
+        }), right);
+        saves.addView(saveButtons);
 
-        play = new Button(this);
-        play.setTextSize(20);
-        play.setAllCaps(false);
-        play.setBackgroundColor(Color.rgb(40, 120, 230));
-        play.setTextColor(Color.WHITE);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64));
-        lp.topMargin = dp(18);
-        root.addView(play, lp);
+        // The Play button stays at the bottom while the options scroll.
+        play = Ui.primary(this);
         play.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -509,10 +488,55 @@ public class Launcher extends Activity {
                 startGame(false);
             }
         });
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.VERTICAL);
+        bar.setBackgroundColor(Color.rgb(4, 8, 20));
+        bar.setPadding(dp(20), dp(10), dp(20), dp(12));
+        bar.addView(play, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(58)));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(root);
-        setContentView(scroll);
+        outer.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        View line = new View(this);
+        line.setBackgroundColor(Ui.STROKE);
+        outer.addView(line, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        outer.addView(bar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        setContentView(outer);
+        updateButtons(null);
+    }
+
+    // One option: its name, and its choices side by side (the chosen one filled).
+    LinearLayout optionBlock(final Option o) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(6), 0, dp(8));
+        block.addView(Ui.label(this, t(o.es, o.en)));
+        LinearLayout seg = new LinearLayout(this);
+        seg.setOrientation(LinearLayout.HORIZONTAL);
+        o.pills.clear();
+        for (int k = 0; k < o.values.length; k++) {
+            final int choice = k;
+            TextView pill = Ui.pill(this, t(o.labelsEs[k], o.labelsEn[k]));
+            pill.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    o.pick = choice;
+                    updateButtons(null);
+                    save();
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(52), 1);
+            if (k > 0) lp.leftMargin = dp(6);
+            seg.addView(pill, lp);
+            o.pills.add(pill);
+        }
+        LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        segLp.topMargin = dp(8);
+        block.addView(seg, segLp);
+        return block;
     }
 
     void refresh() {
@@ -566,14 +590,10 @@ public class Launcher extends Activity {
         }
     }
 
-    void updateButtons(View v) {
-        if (v instanceof Button && v.getTag() instanceof Option) {
-            Option o = (Option) v.getTag();
-            ((Button) v).setText(label((Option) v.getTag()));
-        } else if (v instanceof android.view.ViewGroup) {
-            android.view.ViewGroup g = (android.view.ViewGroup) v;
-            for (int k = 0; k < g.getChildCount(); k++) updateButtons(g.getChildAt(k));
-        }
+    // Marks the chosen choice of every option (the View argument is a leftover of the old cycling buttons).
+    void updateButtons(View unused) {
+        for (Option o : options)
+            for (int k = 0; k < o.pills.size(); k++) Ui.setSelected(this, o.pills.get(k), k == o.pick);
     }
 
     void tell(String title, String message) {
@@ -755,43 +775,27 @@ public class Launcher extends Activity {
         return null;
     }
 
-    void hint(LinearLayout root, String text) {
-        TextView h = new TextView(this);
-        h.setText(text);
-        h.setTextColor(Color.rgb(160, 170, 185));
-        h.setTextSize(13);
-        h.setPadding(0, 0, 0, dp(6));
-        root.addView(h);
-    }
-
-    void header(LinearLayout root, String text) {
-        TextView h = new TextView(this);
-        h.setText(text);
-        h.setTextColor(Color.rgb(110, 175, 255));
-        h.setTextSize(14);
-        h.setTypeface(Typeface.DEFAULT_BOLD);
-        h.setPadding(0, dp(18), 0, dp(4));
-        root.addView(h);
-    }
-
     int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
-    void addRow(LinearLayout root, String label, String button, View.OnClickListener click) {
+    // A rounded panel with a title (and a line of advice); the rows go inside it.
+    LinearLayout section(LinearLayout root, String title, String advice) {
+        LinearLayout card = Ui.card(this, root);
+        if (!title.isEmpty()) card.addView(Ui.title(this, title));
+        if (advice != null) card.addView(Ui.hint(this, advice));
+        return card;
+    }
+
+    // A name on the left, a small button on the right.
+    void addRow(LinearLayout card, String label, String button, View.OnClickListener click) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(4), 0, dp(4));
-        TextView name = new TextView(this);
-        name.setText(label);
-        name.setTextColor(Color.WHITE);
-        name.setTextSize(17);
-        row.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        Button b = new Button(this);
-        b.setAllCaps(false);
-        b.setMinWidth(dp(180));
-        b.setText(button);
-        b.setOnClickListener(click);
-        row.addView(b);
-        root.addView(row);
+        row.setPadding(0, dp(5), 0, dp(5));
+        row.addView(Ui.label(this, label), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = dp(12);
+        row.addView(Ui.action(this, button, click), lp);
+        card.addView(row);
     }
 }

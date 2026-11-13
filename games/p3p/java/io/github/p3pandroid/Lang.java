@@ -56,6 +56,7 @@ final class Lang {
     static {
         // Options
         // Added with the 0.3.0 options screen and the texts that were missing
+        put("Tools", "Outils", "Werkzeuge", "Strumenti", "Ferramentas", "ツール", "도구", "工具", "工具");
         put("720p (recommended)",
                 "720p (recommandée)",
                 "720p (empfohlen)",
