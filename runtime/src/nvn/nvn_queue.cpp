@@ -471,10 +471,16 @@ static void cpu_log_tick() {}
 // this frame's calc and draw recording): 2 when it reaches 15.83 ms, locked after 3 slow frames, back to 1 after 15
 // fast ones (docs/nvn/DEBUG.md #43). From that call site (lr main+e16ac, x19 = the framework): a histogram of that
 // time every 600 frames, and NX_MAX_INTERVAL=1 clamps the game's own maximum to 1 (fields 0x24c/0x264/0x268).
+// Set once the probe below has a call site in the game: it then ticks the main thread's frame stats itself. Without
+// one (Persona 3 Portable: that offset is Wonder's) QueuePresentTexture does, on the same thread, so the main thread's
+// cores and CPU time are logged and NX_AFFINITY places it too (frame_stats.cpp).
+static std::atomic<bool> g_probe_ticks{false};
+
 void frame_time_probe(CPU& c) {
     const LoadedModule* m = module_at(c.x[30]);
     if (!m || c.x[30] - m->base != 0xe16ac || !c.x[19]) return;
     plat::perf_hint_thread();  // the game's main thread makes the frame too (ADPF, PLAN.md R2)
+    g_probe_ticks.store(true, std::memory_order_relaxed);
     plat::frame_thread_tick(1);
     {
         static thread_local bool marked = false;
@@ -626,6 +632,7 @@ void QueuePresentTexture(CPU& c) {
         if (++n % 600 == 0) svc_profile_report(600, 2);
     }
     plat::perf_hint_thread();
+    if (!g_probe_ticks.load(std::memory_order_relaxed)) plat::frame_thread_tick(1);  // the game's main thread (see g_probe_ticks)
     if (work_from) plat::perf_hint_frame(int64_t(t_in - work_from));
     if (auto* w = get<Window>(c.x[1])) {
         // At most two presents queued: the game runs at most two frames ahead of the replay.
