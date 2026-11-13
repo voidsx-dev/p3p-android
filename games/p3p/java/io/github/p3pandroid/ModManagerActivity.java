@@ -5,13 +5,18 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -50,6 +55,33 @@ public final class ModManagerActivity extends Activity {
     private File modsDir() { return new File(Launcher.dataDir(), "mods"); }
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
+    // Keep the utility screen edge-to-edge and hide both Android system bars.
+    private void applyImmersiveMode() {
+        View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            decor.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
+        }
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         build();
@@ -58,6 +90,7 @@ public final class ModManagerActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        applyImmersiveMode();
         if (list != null) refresh();
     }
 
@@ -70,40 +103,74 @@ public final class ModManagerActivity extends Activity {
         return v;
     }
 
-    private Button button(String label) {
+    private GradientDrawable shape(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radius));
+        return d;
+    }
+
+    private Button button(String label, boolean primary) {
         Button b = new Button(this);
         b.setAllCaps(false);
         b.setText(label);
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(Color.WHITE);
+        b.setMinHeight(dp(48));
+        b.setPadding(dp(12), dp(8), dp(12), dp(8));
+        b.setBackground(shape(primary ? BLUE : Color.rgb(35, 54, 82), 13));
         return b;
     }
 
     private void build() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(18), dp(20), dp(20));
+        root.setPadding(dp(22), dp(22), dp(22), dp(18));
         root.setBackgroundColor(BG);
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("GERENCIADOR DE MODS", 23, Color.WHITE, true);
-        top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        Button back = button("Voltar");
+        LinearLayout heading = new LinearLayout(this);
+        heading.setOrientation(LinearLayout.VERTICAL);
+        TextView eyebrow = text("P3P ANDROID  •  PERSONALIZAÇÃO", 10, Color.rgb(110, 175, 255), true);
+        TextView title = text("Gerenciador de mods", 25, Color.WHITE, true);
+        heading.addView(eyebrow);
+        heading.addView(title);
+        top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        Button back = button("Voltar", false);
         back.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
         top.addView(back);
         root.addView(top);
 
-        summary = text("", 13, Color.LTGRAY, false);
-        summary.setPadding(0, dp(8), 0, dp(12));
-        root.addView(summary);
+        LinearLayout summaryCard = new LinearLayout(this);
+        summaryCard.setOrientation(LinearLayout.VERTICAL);
+        summaryCard.setPadding(dp(16), dp(13), dp(16), dp(13));
+        summaryCard.setBackground(shape(PANEL, 16));
+        LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(-1, -2);
+        summaryParams.topMargin = dp(16);
+        summaryParams.bottomMargin = dp(12);
+        root.addView(summaryCard, summaryParams);
+        summaryCard.addView(text("BIBLIOTECA", 10, Color.rgb(110, 175, 255), true));
+        summary = text("", 14, Color.WHITE, true);
+        summary.setPadding(0, dp(4), 0, 0);
+        summaryCard.addView(summary);
 
+        TextView actionTitle = text("Importar novo mod", 16, Color.WHITE, true);
+        actionTitle.setPadding(0, dp(4), 0, dp(8));
+        root.addView(actionTitle);
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button cpk = button("Importar CPK");
-        Button zip = button("Importar ZIP");
-        actions.addView(cpk, new LinearLayout.LayoutParams(0, -2, 1));
-        actions.addView(zip, new LinearLayout.LayoutParams(0, -2, 1));
+        Button cpk = button("＋  Importar CPK", true);
+        Button zip = button("＋  Importar ZIP", false);
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, -2, 1);
+        actionParams.rightMargin = dp(6);
+        actions.addView(cpk, actionParams);
+        LinearLayout.LayoutParams zipParams = new LinearLayout.LayoutParams(0, -2, 1);
+        zipParams.leftMargin = dp(6);
+        actions.addView(zip, zipParams);
         cpk.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { pick(PICK_CPK); }
         });
@@ -112,17 +179,22 @@ public final class ModManagerActivity extends Activity {
         });
         root.addView(actions);
 
-        TextView note = text("Mods são lidos de Persona 3 Portable/mods. Pastas iniciadas por _ ficam desativadas. Reinicie o jogo para aplicar alterações.",
+        TextView note = text("Os mods ficam em Persona 3 Portable/mods. Pastas iniciadas por _ ficam desativadas. Reinicie o jogo para aplicar alterações.",
                 12, Color.rgb(170, 190, 215), false);
-        note.setPadding(0, dp(8), 0, dp(12));
+        note.setPadding(dp(2), dp(9), dp(2), dp(10));
         root.addView(note);
 
+        TextView installed = text("MODS INSTALADOS", 10, Color.rgb(110, 175, 255), true);
+        installed.setPadding(0, dp(4), 0, dp(8));
+        root.addView(installed);
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(list);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
+        applyImmersiveMode();
     }
 
     private void pick(int request) {
@@ -388,7 +460,7 @@ public final class ModManagerActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(10), dp(14), dp(10));
-        card.setBackgroundColor(PANEL);
+        card.setBackground(shape(PANEL, 15));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
         cp.bottomMargin = dp(9);
         list.addView(card, cp);
@@ -408,8 +480,8 @@ public final class ModManagerActivity extends Activity {
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
-        Button toggle = button(active ? "Desativar" : "Ativar");
-        Button remove = button("Remover");
+        Button toggle = button(active ? "Desativar" : "Ativar", false);
+        Button remove = button("Remover", false);
         final String dialogDisplay = display;
         actions.addView(toggle);
         actions.addView(remove);
