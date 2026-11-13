@@ -206,7 +206,8 @@ uint32_t clears_apply(const Targets& t, VkRenderingAttachmentInfo* colors, VkRen
 // clear covers its whole target (draw_clear defers only those), so clearing the view's level and layer is the same.
 // Not for a view in another format than its image (a loadOp clears through the view, an sRGB view encodes), nor for
 // 3D images (a transfer clear takes every slice): those keep the pass. Android by default (MoltenVK encodes a transfer
-// clear as a Metal encoder of its own, DEBUG.md #31); NX_CLEARS_PASS=1: the pass; NX_CLEARS_TRANSFER=1: elsewhere too.
+// clear as a Metal encoder of its own, DEBUG.md #31); also on Mali-G57 (measured, below). NX_CLEARS_PASS=1: the pass;
+// NX_CLEARS_TRANSFER=1: on any other GPU too (to try a model that was not measured).
 bool transfer_clears() {
     static const bool on = [] {
 #if defined(__ANDROID__)
@@ -218,7 +219,12 @@ bool transfer_clears() {
         if (std::getenv("NX_CLEARS_TRANSFER")) return true;
         VkPhysicalDeviceProperties props{};
         p_vkGetPhysicalDeviceProperties(vk_physical(), &props);
-        return props.vendorID == 0x5143;  // Qualcomm: Adreno
+        const bool adreno = props.vendorID == 0x5143;  // Qualcomm
+        // Mali-G57 (Helio G99 and kin): measured on a phone, the dormitory went to 60 fps with transfer clears and the
+        // course kept 56-60. Only this model: the other Mali were not measured, so they keep the loadOps (above).
+        const bool mali_g57 = props.vendorID == 0x13B5 && std::strstr(props.deviceName, "Mali-G57") != nullptr;
+        log("nvn clears: %s on %s", adreno || mali_g57 ? "transfer clears" : "render-pass loadOps", props.deviceName);
+        return adreno || mali_g57;
 #else
         return std::getenv("NX_CLEARS_TRANSFER") != nullptr;
 #endif
