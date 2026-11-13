@@ -916,8 +916,15 @@ std::unique_ptr<PipeBuild> prepare_graphics_pipeline(const PipelineKey& key, con
     VkGraphicsPipelineCreateInfo& ci = B.ci;
     ci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
     ci.pNext = &ri;
-    if (render_pass_objects())  // nvn_renderpass.cpp: compatible with every pass of these formats
+    if (render_pass_objects()) {  // nvn_renderpass.cpp: compatible with every pass of these formats
         ci.pNext = nullptr, ci.renderPass = compatible_render_pass(key.color_count, key.color_formats, key.depth_format);
+        // PowerVR (seen on P5R, a Moto G54's BXM-8-256): vkCreateGraphicsPipelines with a pipeline cache crashes inside
+        // the driver when the subpass has an unused colour slot (VK_ATTACHMENT_UNUSED); the same pipeline compiles with
+        // no cache, or with every slot used. Those pipelines skip the cache there, the others keep it.
+        bool unused_slot = false;
+        for (uint32_t k = 0; k < key.color_count && k < 8; k++) unused_slot |= key.color_formats[k] == VK_FORMAT_UNDEFINED;
+        if (unused_slot && B.cache && is_powervr()) B.cache = VK_NULL_HANDLE;
+    }
     ci.stageCount = nstages;
     ci.pStages = stages;
     ci.pVertexInputState = &vi;

@@ -60,6 +60,8 @@ bool vk_dynamic_rendering();  // core 1.3 dynamic rendering; without it, render 
 const VkPhysicalDeviceFeatures& vk_features();
 bool gpu_require_subgroup32();  // compute pipelines pin the subgroup size to 32 (nvn_pipeline.cpp)
 bool gpu_is_integrated();  // the device in use is an integrated GPU (set when the device is made)
+bool is_powervr();   // PowerVR: pipelines with an unused colour slot are made without the pipeline cache (nvn_pipeline.cpp)
+bool is_adreno_8xx();  // Adreno 8xx (Snapdragon 8 Elite): submits are not queued in chunks (nvn_frames.cpp)
 VkPhysicalDevice vk_physical();
 // nvn_gpu_pick.cpp: logs every device and returns the one NX_GPU asks for (default: the first discrete GPU).
 VkPhysicalDevice pick_physical_device(const std::vector<VkPhysicalDevice>& devices);

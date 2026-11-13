@@ -36,6 +36,7 @@ std::recursive_mutex g_gpu;  // the whole GPU side: one submitting thread at a t
 bool g_ready = false, g_failed = false;
 VkInstance g_instance = VK_NULL_HANDLE;
 VkPhysicalDevice g_physical = VK_NULL_HANDLE;
+VkPhysicalDeviceProperties g_device_props{};  // the GPU in use, for the vendor checks below
 VkDevice g_device = VK_NULL_HANDLE;
 VkQueue g_queue = VK_NULL_HANDLE;
 uint32_t g_family = 0;
@@ -156,6 +157,9 @@ bool init() {
     }
     VkPhysicalDeviceProperties props{};
     p_vkGetPhysicalDeviceProperties(g_physical, &props);
+    g_device_props = props;
+    if (is_adreno_8xx()) log("nvn/vk: Qualcomm Adreno 8xx GPU detected (submits are not queued in chunks: they hang the GPU in battles)");
+    if (is_powervr()) log("nvn/vk: PowerVR GPU detected (pipelines with an unused colour slot skip the pipeline cache)");
     p_vkGetPhysicalDeviceMemoryProperties(g_physical, &g_memory);
     g_integrated = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
     // An integrated GPU shares the package's power budget with the CPU: ask the desktop for its performance profile
@@ -468,6 +472,15 @@ bool make_swapchain() {
 std::recursive_mutex& gpu_lock() { return g_gpu; }
 VkDevice vk_device() { return g_device; }
 VkPhysicalDevice vk_physical() { return g_physical; }
+bool is_powervr() {
+    return std::strstr(g_device_props.deviceName, "PowerVR") != nullptr || g_device_props.vendorID == 0x1010;
+}
+bool is_adreno_8xx() {
+    const char* p = std::strstr(g_device_props.deviceName, "Adreno");
+    if (!p) return false;
+    while (*p && !(*p >= '0' && *p <= '9')) p++;
+    return *p == '8';  // "Adreno (TM) 830": the first digit of the model
+}
 VkQueue vk_queue() { return g_queue; }
 uint32_t vk_queue_family() { return g_family; }
 bool vk_depth_clip_control() { return g_depth_clip_control; }

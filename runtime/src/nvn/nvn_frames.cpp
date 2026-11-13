@@ -61,7 +61,7 @@ namespace {
 
 constexpr uint32_t kMaxSlots = 8;
 constexpr uint32_t kMaxParts = 8;  // command buffers per submit: chunks, the split, the last part
-constexpr uint64_t kFenceTimeout = 2'000'000'000ull;  // a frame's work takes milliseconds; longer is a hung shader
+constexpr uint64_t kFenceTimeout = 10'000'000'000ull;  // a frame's work takes milliseconds; heavy scene or shader transitions on a mobile GPU can still pass 2 s
 
 struct Slot {
     VkCommandPool pool = VK_NULL_HANDLE;  // its own (the parts reset together), unless NX_CB_RESET=1
@@ -166,7 +166,11 @@ void wait_fences(const VkFence* fences, uint32_t n) {
     if (!n) return;
     uint64_t t0 = plat::monotonic_ns();
     VkResult r = p_vkWaitForFences(vk_device(), n, fences, VK_TRUE, kFenceTimeout);
-    if (r == VK_TIMEOUT) gpu_hung("a submit did not finish in 2 s");
+    if (r == VK_TIMEOUT) {  // one more interval before calling it hung: a slow GPU in a heavy transition is not a hang
+        log("nvn/vk: a submit took over 10 s; waiting one more interval before aborting");
+        r = p_vkWaitForFences(vk_device(), n, fences, VK_TRUE, kFenceTimeout);
+    }
+    if (r == VK_TIMEOUT) gpu_hung("a submit did not finish in 20 s");
     if (r == VK_ERROR_DEVICE_LOST) gpu_hung("vkWaitForFences");
     if (r != VK_SUCCESS) log("nvn/vk: vkWaitForFences failed (%d)", int(r));
     g_times.fence_ns += plat::monotonic_ns() - t0;
@@ -443,7 +447,13 @@ void frame_init(VkCommandPool pool, uint32_t family, VkBuffer ring, uint8_t* rin
     }
     g_ring = ring, g_ring_ptr = ring_ptr, g_ring_size = ring_size;
 #if defined(__ANDROID__)
-    g_chunk_draws = std::getenv("NX_SUBMIT_CHUNK_DRAWS") ? uint64_t(env_int("NX_SUBMIT_CHUNK_DRAWS")) : 150;
+    if (std::getenv("NX_SUBMIT_CHUNK_DRAWS")) {
+        g_chunk_draws = uint64_t(env_int("NX_SUBMIT_CHUNK_DRAWS"));
+    } else if (is_adreno_8xx()) {
+        g_chunk_draws = 0;  // the Adreno 8xx driver hangs the GPU on chunked submits during battle passes (seen on P5R)
+    } else {
+        g_chunk_draws = 150;
+    }
 #else
     g_chunk_draws = uint64_t(env_int("NX_SUBMIT_CHUNK_DRAWS"));
 #endif
