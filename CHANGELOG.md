@@ -2,7 +2,7 @@ Changelog
 
 All notable changes to P3P Android are documented here.
 
-[0.3.0] - Unreleased
+[0.3.0] - Released
 
 Added
 
