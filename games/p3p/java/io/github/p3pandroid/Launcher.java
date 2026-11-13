@@ -24,6 +24,8 @@ import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -281,7 +283,7 @@ public class Launcher extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        applyImmersiveMode();
         // Image: the render size (the game draws at it; the phone's screen scales it) and how it is scaled up.
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
                 new String[] {"720p", "1080p"},
@@ -314,9 +316,39 @@ public class Launcher extends Activity {
         build();
     }
 
+    // Keep both Android system bars hidden in the launcher, not just in the game.
+    // Reapply after returning from dialogs, file pickers, or another activity.
+    private void applyImmersiveMode() {
+        final View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            decor.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyImmersiveMode();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        applyImmersiveMode();
         refresh();
     }
 
@@ -332,15 +364,7 @@ public class Launcher extends Activity {
         final LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
         outer.setBackground(Ui.background());
-        // Android 15 draws apps behind the system bars: keep the content and the Play button clear of them.
-        outer.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-            @Override
-            public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets in) {
-                v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(),
-                        in.getSystemWindowInsetBottom());
-                return in;
-            }
-        });
+        // Immersive mode owns the full display; do not re-add system-bar insets as empty padding.
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
