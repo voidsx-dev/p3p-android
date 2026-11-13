@@ -43,13 +43,13 @@
         <activity
             android:name=".ModManagerActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:theme="@style/Fullscreen"
             android:screenOrientation="sensorLandscape" />
         <!-- Read-only device, memory, GPU and game-data diagnostics. -->
         <activity
             android:name=".DiagnosticsActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:theme="@style/Fullscreen"
             android:screenOrientation="sensorLandscape" />
         <!-- Prepares the game once: checks the player's NSP and keys and translates its shaders (libp3pimport.so with
              libspirvharness.so, the shader translator). Its own process, so the translator's runtime never shares
