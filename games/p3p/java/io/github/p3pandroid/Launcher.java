@@ -50,13 +50,15 @@ import java.util.Map;
  *   game text   the language of the game's texts and subtitles: always language=auto (the device's, English when
  *               the game lacks it), written by save(), with no option on screen. The voices are the game's own
  *               option.
- *   resolution  720p (NX_HANDHELD=1, default) or 1080p (NX_HANDHELD=0)
- *   interface   at 720p (NX_HUD_1080=0, default: faster) or, in 720p, drawn at 1080p (NX_HUD_1080=1: sharper text)
- *   graphics    low (default), medium or high: textures one mip smaller (NX_LOD_BIAS=1), half a mip, or the game's
- *               own. (A lower render resolution needs the engine's target sizes: games/p3p/PROGRESO.md.)
- *   frame rate  30 (NX_FPS_CAP=30, default) or 60 (NX_FPS_CAP=60: games/p3p/game.cpp patches the engine's interval)
+ *   resolution  720p (NX_HANDHELD=1, default) or 1080p (NX_HANDHELD=0). Sizes below 720p are not offered: the handheld
+ *               mode ignores them (games/p3p/PROGRESO.md, the engine's target sizes)
+ *   FSR         off (default) or on (NX_FSR=1): the present pass upscales the picture with FSR 1 instead of plain scaling
+ *   stretch     keep the 16:9 picture (default) or fill the screen (NX_STRETCH=1)
+ *   frame rate  30 (NX_FPS_CAP=30, default) or 60 (NX_FPS_CAP=60: the cap is the runtime's, nvn_queue.cpp)
+ *   CPU cores   the scheduler's choice (NX_AFFINITY=0, default) or the fast cores for the replay and main threads (1)
  *   FPS counter off (default) or on (NX_SHOW_FPS)
- *   shadows     off (NX_SHADOWS=0, default: the shadow maps are not drawn, ~9% of the GPU on the 3D title) or on
+ *   audio       low latency (NX_AUDIO_MODE=lowlatency, default) or the normal path ("none"): headphones often only
+ *               get the normal one, and the runtime reopens its stream when the output changes
  *   on-screen controls on (default) or off (NX_TOUCH_SHOW), their size (NX_TOUCH_SIZE) and opacity (NX_TOUCH_OPACITY),
  *               and where they are (NX_TOUCH_LAYOUT, written by ControlsEditor)
  * and imports or exports the saves (user/save, SaveFiles.java): a ZIP or a folder in, a ZIP in Download out.
@@ -279,20 +281,27 @@ public class Launcher extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        // Image: the render size (the game draws at it; the phone's screen scales it) and how it is scaled up.
         options.add(new Option("RESOLUTION", "Resolución", "Resolution",
-        new String[] {"720p", "1080p"},
-        new String[] {"720p", "1080p"},
-        new String[] {"720p", "1080p"}, 0));
+                new String[] {"720p", "1080p"},
+                new String[] {"720p (recomendada)", "1080p (pesada)"},
+                new String[] {"720p (recommended)", "1080p (heavy)"}, 0));
+        options.add(new Option("NX_FSR", "Escalado nítido (FSR)", "Sharp upscaling (FSR)", new String[] {"0", "1"},
+                new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
         options.add(new Option("NX_STRETCH", "Pantalla completa (estirar)", "Fullscreen (stretch)",
                 new String[] {"0", "1"},
                 new String[] {"Desactivada", "Activada"},
                 new String[] {"Off", "On"}, 0));
-        options.add(new Option("GRAPHICS", "Calidad de texturas", "Texture quality", new String[] {"low", "medium", "high"},
-                new String[] {"Bajas", "Medias", "Altas"}, new String[] {"Low", "Medium", "High"}, 2));
+        // Performance: what really moves the speed of this game on a phone.
         options.add(new Option("NX_FPS_CAP", "Fotogramas por segundo", "Frame rate", new String[] {"30", "60"},
                 new String[] {"30 fps", "60 fps"}, new String[] {"30 fps", "60 fps"}, 0));
+        options.add(new Option("NX_AFFINITY", "Núcleos de la CPU", "CPU cores", new String[] {"0", "1"},
+                new String[] {"Automático", "Priorizar los rápidos"}, new String[] {"Automatic", "Prefer the fast ones"}, 0));
         options.add(new Option("NX_SHOW_FPS", "Contador de FPS", "FPS counter", new String[] {"0", "1"},
                 new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
+        // Audio: how the phone's audio path is asked for (some outputs, headphones among them, do not give the fast one).
+        options.add(new Option("NX_AUDIO_MODE", "Salida de audio", "Audio output", new String[] {"lowlatency", "none"},
+                new String[] {"Baja latencia", "Normal (más estable)"}, new String[] {"Low latency", "Normal (more stable)"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
                 new String[] {"Activados", "Desactivados"}, new String[] {"On", "Off"}, 0));
         options.add(new Option("NX_TOUCH_SIZE", "Tamaño de los botones", "Button size",
@@ -348,6 +357,8 @@ public class Launcher extends Activity {
         for (final Option o : options) {
             String[] section = sectionOf(o.key);
             if (section != null) header(root, t(section[0], section[1]));
+            String[] advice = hintOf(o.key);
+            if (advice != null) hint(root, t(advice[0], advice[1]));
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
@@ -402,7 +413,7 @@ public class Launcher extends Activity {
 
         // Mods manager: scans the existing mods/ folder and manages RomFS overlays.
         header(root, t("Mods", "Mods"));
-        addRow(root, t("Gerenciador de mods", "Mod manager"), t("Abrir", "Open"),
+        addRow(root, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"),
                 new View.OnClickListener() {
                     @Override public void onClick(View v) {
                         if (!hasAccess()) { askAccess(); return; }
@@ -410,7 +421,7 @@ public class Launcher extends Activity {
                     }
                 });
 
-        addRow(root, t("Diagnóstico do dispositivo", "Device diagnostics"), t("Abrir", "Open"),
+        addRow(root, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
                 new View.OnClickListener() {
                     @Override public void onClick(View v) {
                         startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
@@ -509,11 +520,11 @@ public class Launcher extends Activity {
         for (Option o : options) {
             String v = config.get(o.key);
             if ("RESOLUTION".equals(o.key)) {
-    if ("1080p".equals(v) || "0".equals(config.get("NX_HANDHELD"))) {
-        v = "1080p";
-    } else {
-        v = "720p";
-    }
+                // Older configs: sizes below 720p never worked here (the handheld mode ignores them) and land on 720p,
+                // 900p on 1080p; without a choice, docked mode meant 1080p.
+                if ("900p".equals(v) || "1080p".equals(v) || (v == null && "0".equals(config.get("NX_HANDHELD"))))
+                    v = "1080p";
+                else v = "720p";
             }
             for (int k = 0; v != null && k < o.values.length; k++)
                 if (o.values[k].equals(v)) o.pick = k;
@@ -714,18 +725,43 @@ public class Launcher extends Activity {
         config.put("resolution", size);
         config.put("NX_RENDER_RES", size);
         config.put("NX_RES", handheld ? "720p" : res);
-        for (String k : new String[] {"RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS", "NX_GPU_PROFILE"}) config.remove(k);
-        final String preset = config.get("GRAPHICS");
-        if ("low".equals(preset)) config.put("NX_LOD_BIAS", "1");
-        else if ("medium".equals(preset)) config.put("NX_LOD_BIAS", "0.5");
+        // Keys of older launchers: the texture preset (GRAPHICS) only biased the mip level of some 3D draws, which this
+        // game's small textures hardly show, so it is gone and its runtime switches are cleared.
+        for (String k : new String[] {"GRAPHICS", "RENDER_SCALE", "NX_ANISO_MAX", "NX_LOD_BIAS", "NX_HUD_1080", "NX_SHADOWS", "NX_GPU_PROFILE"})
+            config.remove(k);
         writeConfig(new File(dataDir(), "config.txt"), config);
     }
 
     // Section titles of the options screen: the first option of each section carries one.
     String[] sectionOf(String key) {
         if ("RESOLUTION".equals(key)) return new String[] {"Imagen", "Display"};
+        if ("NX_FPS_CAP".equals(key)) return new String[] {"Rendimiento", "Performance"};
+        if ("NX_AUDIO_MODE".equals(key)) return new String[] {"Audio", "Audio"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
         return null;
+    }
+
+    // A line of advice under a section's title.
+    String[] hintOf(String key) {
+        if ("RESOLUTION".equals(key))
+            return new String[] {"720p es la resolución de la consola portátil y la que mejor va; 1080p necesita un móvil potente.",
+                    "720p is the handheld console's resolution and the one that runs best; 1080p needs a powerful phone."};
+        if ("NX_FPS_CAP".equals(key))
+            return new String[] {"En móviles modestos, 30 fps suele ir más fluido que 60. \"Priorizar los rápidos\" ayuda cuando la GPU no está al límite.",
+                    "On modest phones 30 fps is usually smoother than 60. \"Prefer the fast ones\" helps when the GPU is not at its limit."};
+        if ("NX_AUDIO_MODE".equals(key))
+            return new String[] {"Si el sonido falla con auriculares, prueba \"Normal\".",
+                    "If the sound breaks up with headphones, try \"Normal\"."};
+        return null;
+    }
+
+    void hint(LinearLayout root, String text) {
+        TextView h = new TextView(this);
+        h.setText(text);
+        h.setTextColor(Color.rgb(160, 170, 185));
+        h.setTextSize(13);
+        h.setPadding(0, 0, 0, dp(6));
+        root.addView(h);
     }
 
     void header(LinearLayout root, String text) {

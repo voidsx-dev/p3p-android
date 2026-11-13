@@ -117,7 +117,8 @@ public final class DiagnosticsActivity extends Activity {
         item(content, out, "Limite de FPS", cfg.getOrDefault("NX_FPS_CAP", "padrão do runtime"));
         item(content, out, "Contador FPS", "1".equals(cfg.get("NX_SHOW_FPS")) ? "Ativado" : "Desativado");
         item(content, out, "Resolução", cfg.getOrDefault("RESOLUTION", "padrão"));
-        item(content, out, "Gráficos", cfg.getOrDefault("GRAPHICS", "padrão"));
+        item(content, out, "Núcleos da CPU", "1".equals(cfg.get("NX_AFFINITY")) ? "Priorizar rápidos" : "Automático");
+        item(content, out, "Modo de áudio", cfg.getOrDefault("NX_AUDIO_MODE", "padrão"));
 
         File storage = data.exists() ? data : Environment.getExternalStorageDirectory();
         StatFs fs = new StatFs(storage.getAbsolutePath());
