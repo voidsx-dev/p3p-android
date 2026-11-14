@@ -18,6 +18,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <malloc.h>
 #include <unistd.h>
@@ -136,6 +137,13 @@ void yield() {
     for (int k = 0; k < 64; k++) asm volatile("yield" ::: "memory");
 }
 void set_thread_name(const char* name) { pthread_setname_np(pthread_self(), name); }
+void set_thread_priority(int nice) {
+    // The calling thread only (who 0 is the thread, not the process, on Linux/Android). May fail (logged once).
+    if (setpriority(PRIO_PROCESS, 0, nice) != 0) {
+        static bool logged = false;
+        if (!logged) logged = true, nx::log("android: setpriority(%d) failed, errno %d", nice, errno);
+    }
+}
 int64_t current_thread_id() { return gettid(); }
 
 // ---- sampling profiler (simpleperf is not always allowed on retail phones) ------------------------------------

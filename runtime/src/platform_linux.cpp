@@ -162,6 +162,7 @@ void sleep_ns(int64_t ns) {
 
 void yield() { sched_yield(); }
 
+void set_thread_priority(int) {}
 void set_thread_name(const char* name) {
     char n[16];  // the kernel keeps 15 characters
     std::snprintf(n, sizeof n, "%s", name);

@@ -67,6 +67,7 @@ void exit_thread() { ExitThread(0); }
 void exit_process(int code) { ExitProcess(UINT(code)); }
 void sleep_ns(int64_t ns) { std::this_thread::sleep_for(std::chrono::nanoseconds(ns)); }
 void yield() { SwitchToThread(); }
+void set_thread_priority(int) {}
 void set_thread_name(const char*) {}
 float default_render_scale() { return 1.0f; }
 void release_window(void*) {}

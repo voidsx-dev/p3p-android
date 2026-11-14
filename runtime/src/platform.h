@@ -31,6 +31,7 @@ void start_thread(ThreadFn fn, void* arg, size_t stack_size);
 void sleep_ns(int64_t ns);
 void yield();
 void set_thread_name(const char* name);
+void set_thread_priority(int nice);  // the calling thread's scheduler weight (Android: nice, -8 = urgent display); a no-op elsewhere
 int64_t current_thread_id();  // the host OS thread id
 // Samples the given threads (thread CPU time, 1 kHz) for `seconds`: host pc, a few host frames and the guest lr
 // (read through guest_lr[k], the thread's x30). Writes one line per sample to `path`:
