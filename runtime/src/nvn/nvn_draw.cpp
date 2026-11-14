@@ -1468,13 +1468,12 @@ void pass_end_only(VkCommandBuffer cb, int reason) {
     g_last_compute_pipeline = VK_NULL_HANDLE;
     if (!g_rendering) return;
     g_pass_ends[reason & 7]++, trace_pass("end: reason", g_pass, uint32_t(reason), 0);
-    if (g_render_pass) {
+    if (g_render_pass)
         p_vkCmdEndRenderPass(cb);
-        g_bound = Bound{};  // each VkRenderPass instance requires pipelines and dynamic state to be bound
-    } else {
+    else
         p_vkCmdEndRendering(cb);
-    }
     g_rendering = false;
+    g_bound = Bound{};  // each render pass instance requires pipelines and dynamic state to be bound
     // What the pass wrote is read by what follows (sampled, copied, loaded by the next pass), and what it sampled may
     // be rendered over next. The images stay GENERAL, so transition() records no barrier. Metal (MoltenVK) and the
     // Intel driver ordered passes anyway; NVIDIA overlaps them, and later passes read half-written tiles: the course

@@ -160,6 +160,7 @@ bool init() {
     if (is_xclipse()) log("nvn/vk: Samsung Xclipse GPU detected (forcing CPU BC texture decode for compatibility)");
     if (is_mali()) log("nvn/vk: ARM Mali GPU detected");
     if (is_adreno_8xx()) log("nvn/vk: Qualcomm Adreno 8xx GPU detected (disabling chunked submits to avoid battle hang)");
+    if (is_powervr()) log("nvn/vk: PowerVR GPU detected (pipelines with an unused colour slot skip the pipeline cache)");
     p_vkGetPhysicalDeviceMemoryProperties(g_physical, &g_memory);
 #if defined(__ANDROID__)
     // All Android mobile SoCs (Mali, Adreno, PowerVR) share system memory with the CPU.
@@ -501,6 +502,9 @@ bool is_mali() {
 }
 bool is_adreno() {
     return std::strstr(g_device_props.deviceName, "Adreno") != nullptr || g_device_props.vendorID == 0x5143;
+}
+bool is_powervr() {
+    return std::strstr(g_device_props.deviceName, "PowerVR") != nullptr || g_device_props.vendorID == 0x1010;
 }
 bool is_adreno_8xx() {
     const char* p = std::strstr(g_device_props.deviceName, "Adreno");
