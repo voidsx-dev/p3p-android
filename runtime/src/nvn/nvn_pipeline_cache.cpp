@@ -40,10 +40,7 @@ VkPipelineCache pipeline_cache() {
     if (const char* e = std::getenv("NX_PIPELINE_CACHE"); e && e[0] == '0') return VK_NULL_HANDLE;
     VkPhysicalDeviceProperties p{};
     p_vkGetPhysicalDeviceProperties(vk_physical(), &p);
-    const char* custom_path = plat::get_pipeline_cache_path();
-    if (custom_path && *custom_path) {
-        g_path = custom_path;
-    } else {
+    {
         char name[64];
         std::snprintf(name, sizeof name, "/pipelines_%04x_%04x.bin", p.vendorID, p.deviceID);
         g_path = plat::data_root() + name;
