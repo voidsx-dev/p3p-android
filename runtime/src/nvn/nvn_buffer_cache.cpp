@@ -170,7 +170,7 @@ struct {
 bool on() {
     static const bool v = [] {
         const char* e = std::getenv("NX_BUFFER_CACHE");
-        return e && e[0] == '1';  // keep opt-in until measured on P3P devices
+        return !e || e[0] != '0';  // on by default, as on the P5R branch it comes from; NX_BUFFER_CACHE=0: off
     }();
     return v;
 }
