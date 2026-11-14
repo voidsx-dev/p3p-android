@@ -46,6 +46,7 @@ int fseek64(FILE* f, int64_t off, int origin);
 // Positional read, safe with other threads reading the same FILE (no shared file position). Bytes read.
 uint64_t read_at(FILE* f, int64_t off, void* buf, uint64_t size);
 bool make_dirs(const std::string& path);
+void fast_memcpy(void* dst, const void* src, size_t n);
 
 // ---- output ----
 void log_line(const char* line);  // stderr / logcat
