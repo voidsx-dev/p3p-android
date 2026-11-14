@@ -21,6 +21,8 @@ namespace nx::nvn {
 
 using namespace nx::vk;
 
+bool live_present_flip();  // nvn_draw.cpp
+
 namespace {
 
 // glslc -O --target-env=vulkan1.0 of present.vert:
@@ -445,6 +447,8 @@ bool present_pass_record(VkCommandBuffer cb, GpuImage& src, const int32_t* crop,
                                                                      : 0;
     std::memcpy(p.rot, kRot[r], 4 * sizeof(float));
     p.off[0] = kRot[r][4], p.off[1] = kRot[r][5];
+    const bool flip_y = live_present_flip();  // live_flags word present_flip (nvn_draw.cpp)
+    if (flip_y) p.rot[1] = -p.rot[1], p.rot[3] = -p.rot[3], p.off[1] = 1.0f - p.off[1];  // the game draws upside down
     // The part of the texture shown (nvnWindowSetCrop), fit into the upright target keeping its aspect.
     float cx = 0, cy = 0, cw = float(src.width), ch = float(src.height);
     if (crop && crop[2] > 0 && crop[3] > 0 && crop[0] + crop[2] <= int32_t(src.width) &&
@@ -460,8 +464,18 @@ bool present_pass_record(VkCommandBuffer cb, GpuImage& src, const int32_t* crop,
     if (stretch) {
         p.box[0] = 0.0f, p.box[1] = 0.0f, p.box[2] = 1.0f, p.box[3] = 1.0f;
     } else {
-        float scale = std::min(tw / cw, th / ch);
-        bw = cw * scale / tw, bh = ch * scale / th;
+        // P3P's display is always 16:9. Fit that aspect ratio into the upright swapchain
+        // instead of deriving the displayed ratio from the render target/crop (which may
+        // have a non-16:9 extent and make the image look stretched when NX_STRETCH=0).
+        constexpr float game_aspect = 16.0f / 9.0f;
+        const float screen_aspect = tw / th;
+        if (screen_aspect > game_aspect) {
+            bw = game_aspect / screen_aspect;
+            bh = 1.0f;
+        } else {
+            bw = 1.0f;
+            bh = screen_aspect / game_aspect;
+        }
         p.box[0] = (1 - bw) / 2, p.box[1] = (1 - bh) / 2, p.box[2] = bw, p.box[3] = bh;
     }
     // The touch controls (platform_android_input.cpp), in upright uv; none elsewhere.
@@ -538,6 +552,11 @@ bool present_pass_record(VkCommandBuffer cb, GpuImage& src, const int32_t* crop,
     p_vkCmdPushConstants(cb, g.layout, kPushStages, 0, sizeof p, &p);
     p_vkCmdDraw(cb, 3, 1, 0, 0);
     if (count && g.overlay) {  // the touch controls: a quad per circle, blended over the picture (overlay.frag)
+        if (flip_y) {  // the touch controls and the FPS counter are drawn upright: undo the picture's flip for them
+            Push q = p;
+            q.rot[1] = -q.rot[1], q.rot[3] = -q.rot[3], q.off[1] = 1.0f - q.off[1];
+            p_vkCmdPushConstants(cb, g.layout, kPushStages, 0, sizeof q, &q);
+        }
         p_vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g.overlay);
         p_vkCmdDraw(cb, 4, uint32_t(count), 0, 0);
     }

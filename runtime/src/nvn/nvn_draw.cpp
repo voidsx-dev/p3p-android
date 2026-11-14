@@ -532,6 +532,36 @@ uint32_t live_flags() {
 
 bool live_clears_why() { return live_flags() & kLiveClearsWhy; }
 
+// P3P window-origin settings, read from "live_flags" or "live_flags.txt" in the data folder (every ~30 frames):
+// vp_noflip = draw with Vulkan's own viewport mapping (NVN's lower-left origin), present_flip = the final picture
+// turned over when shown, cull_swap = the opposite front face. games/p3p/game.cpp writes "vp_noflip present_flip"
+// on first run. Unlike the debugging words above, these are part of how P3P is drawn, so they are read in release
+// builds too (kDiagnostics only gates the experiments).
+namespace {
+uint32_t origin_flags() {
+    static std::atomic<uint64_t> next_check{0};
+    static std::atomic<uint32_t> flags{0};
+    const uint64_t f = g_frame.load();
+    if (f < next_check.load()) return flags.load();
+    next_check.store(f + 30);
+    uint32_t now = 0;
+    FILE* file = plat::fopen_utf8(plat::data_root() + "/live_flags", "rb");
+    if (!file) file = plat::fopen_utf8(plat::data_root() + "/live_flags.txt", "rb");
+    if (file) {
+        char words[256] = {};
+        std::fread(words, 1, sizeof words - 1, file);
+        std::fclose(file);
+        if (std::strstr(words, "vp_noflip")) now |= 1;
+        if (std::strstr(words, "present_flip")) now |= 2;
+        if (std::strstr(words, "cull_swap")) now |= 4;
+    }
+    const uint32_t before = flags.exchange(now);
+    if (before != now) log("origin flags: %x (was %x) at frame %llu", now, before, (unsigned long long)f);
+    return now;
+}
+}  // namespace
+bool live_present_flip() { return (origin_flags() & 2) != 0; }
+
 bool exp_no_write_backs() {
     static const bool s_exp_no_wb_env = [] {
         const char* e = std::getenv("NX_EXP_NO_WB");
@@ -991,9 +1021,11 @@ bool draw(VkCommandBuffer cb, const Targets& t, uint32_t mode, bool indexed, con
     };
     static PipeMru s_pipe_mru[4];
     static VkCommandBuffer s_pipe_mru_cb = VK_NULL_HANDLE;
-    if (targets_changed || s_pipe_mru_cb != cb) {
-        for (auto& e : s_pipe_mru) e.pipeline = VK_NULL_HANDLE;
+    static uint32_t s_pipe_mru_origin = 0;
+    if (targets_changed || s_pipe_mru_cb != cb || s_pipe_mru_origin != origin_flags()) {
+        for (auto& e : s_pipe_mru) e.pipeline = VK_NULL_HANDLE;  // (the origin flags change the front face)
         s_pipe_mru_cb = cb;
+        s_pipe_mru_origin = origin_flags();
     }
 
     const bool tex_empty = g_textures.bindings.empty();
@@ -1030,6 +1062,10 @@ bool draw(VkCommandBuffer cb, const Targets& t, uint32_t mode, bool indexed, con
         std::copy_n(g_state.streams.begin(), key.stream_count, key.streams);
         std::copy_n(g_state.blend, 8, key.blend);
         key.color = g_state.color, key.mask = g_state.mask, key.depth = g_state.depth, key.polygon = g_state.polygon;
+        {   // P3P: a mirrored viewport (vp_noflip) mirrors the winding
+            const uint32_t of = origin_flags();
+            if (((of & 1) != 0) != ((of & 4) != 0)) key.polygon.front = key.polygon.front == 0 ? 1 : 0;
+        }
         // NX_HUD_KEEP_ALPHA=1 (P5R by default, games/p5r/game.cpp): draws into the HUD/menu targets (RGBA8, 1280 wide or
         // more, depth tested) with plain alpha blending leave the target's alpha alone. P5R builds alpha on purpose with
         // its own states (alpha-only masks, MIN/MAX/REVERSE_SUBTRACT; the panels' drop shadows), sets it to 0 under the
@@ -1248,7 +1284,13 @@ bool draw(VkCommandBuffer cb, const Targets& t, uint32_t mode, bool indexed, con
         vp.x *= 0.75f, vp.y *= 0.75f, vp.width *= 0.75f, vp.height *= 0.75f;
         sc = {{sc.offset.x * 3 / 4, sc.offset.y * 3 / 4}, {sc.extent.width * 3 / 4, sc.extent.height * 3 / 4}};
     }
-    vp.y += vp.height, vp.height = -vp.height;
+    if (origin_flags() & 1) {  // P3P: a lower-left origin is Vulkan's own mapping; y counts from the bottom
+        const int32_t H = int32_t(g_pass_extent.height);
+        if (g_state.has_viewport) vp.y = float(H) - (vp.y + vp.height);
+        if (g_state.has_scissor) sc.offset.y = std::max(0, H - (sc.offset.y + int32_t(sc.extent.height)));
+    } else {
+        vp.y += vp.height, vp.height = -vp.height;
+    }
     set_dynamic(cb, vp, sc);
 
     trace_skin(indexed, c, vs, fs);
