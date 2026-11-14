@@ -254,6 +254,14 @@ void SyncWait(CPU& c) {
 void QueueInitialize(CPU& c) { c.x[0] = 1; }  // NVNboolean (NVNqueue*, const NVNqueueBuilder*)
 void QueueFinalize(CPU&) {}
 void QueueSubmitCommands(CPU& c) {  // (NVNqueue*, int count, const NVNcommandHandle*)
+    // This thread replays NVN and makes the frame: more weight in the scheduler (nice -8, Android's urgent-display
+    // level; the P5R branch it comes from tuned this on a Mali-G57). NX_THREAD_PRIO=0 leaves it alone.
+    static thread_local bool s_prio_set = [] {
+        const char* e = std::getenv("NX_THREAD_PRIO");
+        if (!(e && e[0] == '0')) plat::set_thread_priority(-8);
+        return true;
+    }();
+    (void)s_prio_set;
     plat::perf_hint_thread();  // this thread replays: part of every frame (perf_hint.cpp)
     std::vector<std::shared_ptr<CmdList>> lists;
     lists.reserve(uint32_t(c.x[1]));
