@@ -254,11 +254,6 @@ void SyncWait(CPU& c) {
 void QueueInitialize(CPU& c) { c.x[0] = 1; }  // NVNboolean (NVNqueue*, const NVNqueueBuilder*)
 void QueueFinalize(CPU&) {}
 void QueueSubmitCommands(CPU& c) {  // (NVNqueue*, int count, const NVNcommandHandle*)
-    static thread_local bool s_prio_set = [] {
-        plat::set_thread_priority(-8);
-        return true;
-    }();
-    (void)s_prio_set;
     plat::perf_hint_thread();  // this thread replays: part of every frame (perf_hint.cpp)
     std::vector<std::shared_ptr<CmdList>> lists;
     lists.reserve(uint32_t(c.x[1]));
