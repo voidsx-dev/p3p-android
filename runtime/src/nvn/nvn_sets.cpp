@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#if defined(__aarch64__) && (defined(__ARM_FEATURE_CRC32) || defined(__ARM_ACLE))
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
 #include <arm_acle.h>
 #define HAS_ARM_CRC32 1
 #endif

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <unordered_map>
 
-#if defined(__aarch64__) && (defined(__ARM_FEATURE_CRC32) || defined(__ARM_FEATURE_CRYPTO) || defined(__ARM_ARCH_8A))
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32)
 #include <arm_acle.h>
 #define USE_ARM_CRC32 1
 #endif
