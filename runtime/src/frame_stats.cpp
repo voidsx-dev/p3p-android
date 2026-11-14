@@ -88,7 +88,7 @@ const Cpus& cpus() {
 int affinity_mode() {
     static const int m = [] {
         const char* e = std::getenv("NX_AFFINITY");
-        return e ? std::atoi(e) : 0;
+        return e ? std::atoi(e) : 1;  // on unless config.txt says 0 (the launcher's default is the fast cores)
     }();
     return m;
 }
