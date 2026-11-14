@@ -473,10 +473,16 @@ static void cpu_log_tick() {}
 // this frame's calc and draw recording): 2 when it reaches 15.83 ms, locked after 3 slow frames, back to 1 after 15
 // fast ones (docs/nvn/DEBUG.md #43). From that call site (lr main+e16ac, x19 = the framework): a histogram of that
 // time every 600 frames, and NX_MAX_INTERVAL=1 clamps the game's own maximum to 1 (fields 0x24c/0x264/0x268).
+// Set once the probe below has a call site in the game: it then ticks the main thread's frame stats itself. Without
+// one (Persona 3 Portable: that offset is Wonder's) QueuePresentTexture does, on the same thread, so the main thread's
+// cores and CPU time are logged and NX_AFFINITY places it too (frame_stats.cpp).
+static std::atomic<bool> g_probe_ticks{false};
+
 void frame_time_probe(CPU& c) {
     const LoadedModule* m = module_at(c.x[30]);
     if (!m || c.x[30] - m->base != 0xe16ac || !c.x[19]) return;
     plat::perf_hint_thread();  // the game's main thread makes the frame too (ADPF, PLAN.md R2)
+    g_probe_ticks.store(true, std::memory_order_relaxed);
     plat::frame_thread_tick(1);
     {
         static thread_local bool marked = false;
@@ -582,13 +588,20 @@ void WindowSetPresentInterval(CPU& c) {
 }
 
 // (NVNqueue*, NVNwindow*, int textureIndex)
-// Frame pacing: a present returns no earlier than the window's present interval (in 60 Hz vsyncs) after the previous
-// one. On the Switch the texture-available sync of the next acquire does this; ours is signaled at once, so without
-// it the game runs as fast as it can once it is faster than 60 fps. A late frame is not snapped to the next vsync
+// Frame pacing: the game's interval is expressed in display refresh periods, but that is not a fixed FPS cap on
+// 90/120 Hz Android panels (interval 2 would mean 45/60 fps). NX_FPS_CAP therefore uses an absolute 30/60 Hz period;
+// without it, preserve the game's normal interval-based pacing. A late frame is not snapped to the next vsync
 // (an 18 ms frame stays 18 ms, not 33). NX_NO_FRAME_LIMIT=1: unpaced.
 void pace_present(int interval) {
     static const bool off = std::getenv("NX_NO_FRAME_LIMIT") != nullptr;
     static uint64_t next = 0;
+    static int last_cap = -1;
+    const char* fps_env = std::getenv("NX_FPS_CAP");
+    const int cap = fps_env ? std::atoi(fps_env) : 0;
+    if (cap != last_cap) {
+        next = 0;  // do not carry a deadline from the previous mode across a launcher restart
+        last_cap = cap;
+    }
     if (off || interval <= 0) return;
     uint64_t now = plat::monotonic_ns();
     if (next > now) plat::sleep_ns(next - now), now = plat::monotonic_ns();
@@ -596,7 +609,9 @@ void pace_present(int interval) {
     at2 += interval >= 2;
     if (++presents % 600 == 0)
         log("nvn: %llu of the last 600 presents at interval >= 2", (unsigned long long)at2), at2 = 0, log_wait_sites();
-    uint64_t period = uint64_t(interval) * display_period_ns();
+    const uint64_t period = cap == 30 ? 1000000000ull / 30
+                           : cap == 60 ? 1000000000ull / 60
+                                       : uint64_t(interval) * display_period_ns();
     next = (next > now || now - next < period ? next : now) + period;
 }
 
@@ -614,6 +629,7 @@ void QueuePresentTexture(CPU& c) {
         if (++n % 600 == 0) svc_profile_report(600, 2);
     }
     plat::perf_hint_thread();
+    if (!g_probe_ticks.load(std::memory_order_relaxed)) plat::frame_thread_tick(1);  // the game's main thread (see g_probe_ticks)
     if (work_from) plat::perf_hint_frame(int64_t(t_in - work_from));
     if (auto* w = get<Window>(c.x[1])) {
         // At most two presents queued: the game runs at most two frames ahead of the replay.
