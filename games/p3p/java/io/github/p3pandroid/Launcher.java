@@ -57,7 +57,7 @@ import java.util.Map;
  *   FSR         off (default) or on (NX_FSR=1): the present pass upscales the picture with FSR 1 instead of plain scaling
  *   stretch     keep the 16:9 picture (default) or fill the screen (NX_STRETCH=1)
  *   frame rate  30 (NX_FPS_CAP=30, default) or 60 (NX_FPS_CAP=60: the cap is the runtime's, nvn_queue.cpp)
- *   CPU cores   the scheduler's choice (NX_AFFINITY=0, default) or the fast cores for the replay and main threads (1)
+ *   CPU cores   the fast cores for the replay and main threads (NX_AFFINITY=1, default) or the scheduler's choice (0)
  *   FPS counter off (default) or on (NX_SHOW_FPS)
  *   audio       low latency (NX_AUDIO_MODE=lowlatency, default) or the normal path ("none"): headphones often only
  *               get the normal one, and the runtime reopens its stream when the output changes
@@ -299,7 +299,7 @@ public class Launcher extends Activity {
         options.add(new Option("NX_FPS_CAP", "Fotogramas por segundo", "Frame rate", new String[] {"30", "60"},
                 new String[] {"30 fps", "60 fps"}, new String[] {"30 fps", "60 fps"}, 0));
         options.add(new Option("NX_AFFINITY", "Núcleos de la CPU", "CPU cores", new String[] {"0", "1"},
-                new String[] {"Automático", "Priorizar los rápidos"}, new String[] {"Automatic", "Prefer the fast ones"}, 0));
+                new String[] {"Automático", "Priorizar los rápidos"}, new String[] {"Automatic", "Prefer the fast ones"}, 1));
         options.add(new Option("NX_SHOW_FPS", "Contador de FPS", "FPS counter", new String[] {"0", "1"},
                 new String[] {"Desactivado", "Activado"}, new String[] {"Off", "On"}, 0));
         // Audio: how the phone's audio path is asked for (some outputs, headphones among them, do not give the fast one).
