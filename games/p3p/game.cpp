@@ -203,6 +203,16 @@ void game::after_init() {
             std::fclose(w);
         }
     }
+#if defined(__ANDROID__)
+    // Android render defaults, from the P5R branch and measured on a Helio G99 (Mali-G57) through config.txt, where
+    // each NX_* line still wins (setenv without overwrite; config.txt is already in the environment here):
+    // - NX_IMAGE_STORAGE=0: colour images without STORAGE usage keep the GPU's framebuffer compression (nvn_image.cpp);
+    // - NX_CLEARS_V2=1: pending clears become loadOps instead of standalone transfer clears (nvn_clears.cpp);
+    // - NX_EXP_NO_WB=1: no CPU write-back of compute results the GPU already reads in place (nvn_written.cpp).
+    setenv("NX_IMAGE_STORAGE", "0", 0);
+    setenv("NX_CLEARS_V2", "1", 0);
+    setenv("NX_EXP_NO_WB", "1", 0);
+#endif
     if (const LoadedModule* m = module_at(find_symbol("nnMain"))) g_main_base = m->base;
     if (const LoadedModule* s = module_at(find_symbol("nnosInitialize"))) g_sdk_base = s->base;
     auto hook = [](const char* sym, uint64_t fallback, void (*fn)(CPU&), uint64_t& orig, const char* what) {
