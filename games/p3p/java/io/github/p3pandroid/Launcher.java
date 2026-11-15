@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
@@ -14,6 +13,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
@@ -658,32 +658,116 @@ public class Launcher extends Activity {
         new AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK", null).show();
     }
 
+    private LinearLayout saveImportOption(String tag, String title, String detail) {
+        LinearLayout option = new LinearLayout(this);
+        option.setOrientation(LinearLayout.HORIZONTAL);
+        option.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = Ui.dp(this, 14);
+        option.setPadding(pad, pad, pad, pad);
+        option.setBackground(Ui.pressable(this,
+                Ui.shape(this, Ui.PILL, 14, Ui.STROKE), 14));
+        TextView icon = new TextView(this);
+        icon.setText(tag);
+        icon.setTextColor(Color.WHITE);
+        icon.setTextSize(13);
+        icon.setTypeface(Typeface.DEFAULT_BOLD);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(Ui.shape(this, Ui.ACCENT_DARK, 10, 0));
+        option.addView(icon, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(Ui.dp(this, 13), 0, 0, 0);
+        TextView heading = Ui.label(this, title);
+        heading.setTypeface(Typeface.DEFAULT_BOLD);
+        TextView caption = Ui.hint(this, detail);
+        caption.setPadding(0, Ui.dp(this, 3), 0, 0);
+        copy.addView(heading);
+        copy.addView(caption);
+        option.addView(copy, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return option;
+    }
+
     void askImport() {
-        new AlertDialog.Builder(this)
-                .setTitle(t("Importar partidas", "Import saves"))
-                .setMessage(t("Selecione o ZIP de backup ou a pasta que contém os arquivos salvos. "
-                                + "Suas partidas atuais serão copiadas para um backup antes da importação.",
-                        "Select a backup ZIP or the folder containing the save files. "
-                                + "Your current saves will be backed up before importing."))
-                .setPositiveButton(t("Archivo ZIP", "ZIP file"), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                        i.addCategory(Intent.CATEGORY_OPENABLE);
-                        i.setType("*/*");
-                        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"application/zip",
-                                "application/x-zip-compressed", "application/octet-stream"});
-                        startActivityForResult(i, PICK_ZIP);
-                    }
-                })
-                .setNeutralButton(t("Carpeta", "Folder"), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER);
-                    }
-                })
-                .setNegativeButton(t("Cancelar", "Cancel"), null)
-                .show();
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(Ui.dp(this, 20), Ui.dp(this, 20),
+                Ui.dp(this, 20), Ui.dp(this, 14));
+        panel.setBackground(Ui.shape(this, Ui.CARD, 20, Ui.STROKE));
+
+        TextView eyebrow = Ui.title(this, t("GERENCIAMENTO DE PARTIDAS", "SAVE MANAGEMENT"));
+        panel.addView(eyebrow);
+        TextView heading = new TextView(this);
+        heading.setText(t("Importar partidas", "Import saves"));
+        heading.setTextColor(Ui.TEXT);
+        heading.setTextSize(21);
+        heading.setTypeface(Typeface.DEFAULT_BOLD);
+        heading.setPadding(0, 0, 0, Ui.dp(this, 7));
+        panel.addView(heading);
+        TextView description = Ui.hint(this,
+                t("Escolha de onde importar seu backup. Suas partidas atuais serão copiadas para um backup antes da importação.",
+                  "Choose where to import your backup from. Your current saves will be backed up before importing."));
+        panel.addView(description);
+
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(panel).create();
+
+        LinearLayout zip = saveImportOption("ZIP",
+                t("Arquivo ZIP", "ZIP archive"),
+                t("Backup compactado • recomendado para transferências",
+                  "Compressed backup • recommended for transfers"));
+        LinearLayout.LayoutParams optionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        optionParams.topMargin = Ui.dp(this, 8);
+        panel.addView(zip, optionParams);
+        zip.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                dialog.dismiss();
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"application/zip",
+                        "application/x-zip-compressed", "application/octet-stream"});
+                startActivityForResult(i, PICK_ZIP);
+            }
+        });
+
+        LinearLayout folder = saveImportOption("DIR",
+                t("Selecionar pasta", "Choose folder"),
+                t("Procura os arquivos de save dentro da pasta escolhida",
+                  "Finds save files inside the selected folder"));
+        LinearLayout.LayoutParams folderParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        folderParams.topMargin = Ui.dp(this, 9);
+        panel.addView(folder, folderParams);
+        folder.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                dialog.dismiss();
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER);
+            }
+        });
+
+        TextView cancel = new TextView(this);
+        cancel.setText(t("Cancelar", "Cancel"));
+        cancel.setTextColor(Ui.MUTED);
+        cancel.setTextSize(14);
+        cancel.setTypeface(Typeface.DEFAULT_BOLD);
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setPadding(0, Ui.dp(this, 15), 0, Ui.dp(this, 5));
+        panel.addView(cancel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { dialog.dismiss(); }
+        });
+
+        dialog.setCancelable(true);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            int width = Math.min(getResources().getDisplayMetrics().widthPixels - Ui.dp(this, 32),
+                    Ui.dp(this, 520));
+            dialog.getWindow().setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     @Override

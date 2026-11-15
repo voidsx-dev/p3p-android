@@ -514,6 +514,40 @@ final class Lang {
                 "Aucune sauvegarde trouvée", "Keine Spielstände gefunden", "Nessun salvataggio trovato",
                 "Nenhum save encontrado", "セーブデータが見つかりません", "세이브를 찾을 수 없습니다",
                 "未找到存档", "找不到存檔");
+        // Save screen and import chooser: complete translations for the launcher UI.
+        put("PROTECT YOUR PROGRESS", "PROTÉGEZ VOTRE PROGRESSION", "SCHÜTZE DEINEN SPIELSTAND", "PROTEGGI I TUOI PROGRESSI", "PROTEJA SEU PROGRESSO", "セーブデータを守ろう", "진행 상황을 보호하세요", "保护你的游戏进度", "保護你的遊戲進度");
+        put("Import a backup ZIP or a save folder. Export your saves to keep a backup or move them to another device.",
+                "Importez une sauvegarde ZIP ou un dossier de sauvegarde. Exportez vos sauvegardes pour les conserver ou les transférer.",
+                "Importiere ein ZIP-Backup oder einen Spielstandsordner. Exportiere Spielstände zur Sicherung oder Übertragung.",
+                "Importa un backup ZIP o una cartella di salvataggi. Esporta i salvataggi per conservarli o trasferirli.",
+                "Importe um backup ZIP ou uma pasta de saves. Exporte suas partidas para guardar ou transferir para outro aparelho.",
+                "ZIPバックアップまたはセーブフォルダーをインポートできます。セーブデータをエクスポートして保管・転送できます。",
+                "ZIP 백업 또는 세이브 폴더를 가져오세요. 세이브를 내보내 보관하거나 다른 기기로 옮길 수 있습니다.",
+                "导入 ZIP 备份或存档文件夹。导出存档以备份或转移到其他设备。",
+                "匯入 ZIP 備份或存檔資料夾。匯出存檔以備份或轉移到其他裝置。");
+        put("↓  Import", "↓  Importer", "↓  Importieren", "↓  Importa", "↓  Importar", "↓  インポート", "↓  가져오기", "↓  导入", "↓  匯入");
+        put("↑  Export", "↑  Exporter", "↑  Exportieren", "↑  Esporta", "↑  Exportar", "↑  エクスポート", "↑  내보내기", "↑  导出", "↑  匯出");
+        put("A backup of your current saves is created before importing.",
+                "Une sauvegarde de vos données actuelles est créée avant l'importation.",
+                "Vor dem Import wird eine Sicherung deiner aktuellen Spielstände erstellt.",
+                "Prima dell'importazione viene creato un backup dei salvataggi attuali.",
+                "Um backup das suas partidas atuais é criado antes da importação.",
+                "インポート前に現在のセーブデータをバックアップします。", "가져오기 전에 현재 세이브를 백업합니다.",
+                "导入前会备份当前存档。", "匯入前會備份目前的存檔。");
+        put("SAVE MANAGEMENT", "GESTION DES SAUVEGARDES", "SPIELSTANDVERWALTUNG", "GESTIONE SALVATAGGI", "GERENCIAMENTO DE PARTIDAS", "セーブデータ管理", "세이브 관리", "存档管理", "存檔管理");
+        put("Choose where to import your backup from. Your current saves will be backed up before importing.",
+                "Choisissez la source de votre sauvegarde. Vos données actuelles seront sauvegardées avant l'importation.",
+                "Wähle die Quelle deines Backups. Deine aktuellen Spielstände werden vorher gesichert.",
+                "Scegli da dove importare il backup. I salvataggi attuali verranno copiati prima dell'importazione.",
+                "Escolha de onde importar seu backup. Suas partidas atuais serão copiadas para um backup antes da importação.",
+                "バックアップの読み込み元を選択してください。インポート前に現在のセーブデータを保存します。",
+                "백업을 가져올 위치를 선택하세요. 가져오기 전에 현재 세이브를 백업합니다.",
+                "选择备份来源。导入前会先备份当前存档。", "選擇備份來源。匯入前會先備份目前的存檔。");
+        put("ZIP archive", "Archive ZIP", "ZIP-Archiv", "Archivio ZIP", "Arquivo ZIP", "ZIPアーカイブ", "ZIP 파일", "ZIP 压缩包", "ZIP 壓縮檔");
+        put("Compressed backup • recommended for transfers", "Sauvegarde compressée • recommandé pour le transfert", "Komprimiertes Backup • empfohlen für Übertragungen", "Backup compresso • consigliato per i trasferimenti", "Backup compactado • recomendado para transferências", "圧縮バックアップ • 転送におすすめ", "압축 백업 • 전송에 권장", "压缩备份 • 推荐用于转移", "壓縮備份 • 建議用於轉移");
+        put("Choose folder", "Choisir un dossier", "Ordner auswählen", "Scegli cartella", "Selecionar pasta", "フォルダーを選択", "폴더 선택", "选择文件夹", "選擇資料夾");
+        put("Finds save files inside the selected folder", "Recherche les fichiers de sauvegarde dans le dossier sélectionné", "Sucht Spielstandsdateien im ausgewählten Ordner", "Cerca i file di salvataggio nella cartella selezionata", "Procura os arquivos de save dentro da pasta escolhida", "選択したフォルダー内のセーブファイルを検索します", "선택한 폴더 안에서 세이브 파일을 찾습니다", "在所选文件夹中查找存档文件", "在所選資料夾中尋找存檔檔案");
+
         // Quit confirmation (GameActivity)
         put("Quit the game?", "Quitter le jeu ?", "Spiel beenden?", "Uscire dal gioco?", "Sair do jogo?",
                 "ゲームを終了しますか？", "게임을 종료할까요?", "退出游戏？", "結束遊戲？");

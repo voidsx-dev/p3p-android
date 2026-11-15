@@ -181,19 +181,25 @@ public final class ModManagerActivity extends Activity {
         TextView installed = text("MODS INSTALADOS", 10, Color.rgb(110, 175, 255), true);
         installed.setPadding(0, dp(4), 0, dp(8));
         root.addView(installed);
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
-        scroll.setVerticalScrollBarEnabled(false);
-        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        // Keep the complete screen in one scroll container. The old layout pinned
+        // the header/actions and gave the mod list only the remaining few pixels,
+        // which made cards look cut off on landscape and short displays.
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setClipToPadding(false);
-        list.setPadding(0, 0, 0, dp(18));
-        scroll.addView(list, new ViewGroup.LayoutParams(
+        list.setPadding(0, 0, 0, dp(22));
+        root.addView(list, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
+
+        ScrollView pageScroll = new ScrollView(this);
+        pageScroll.setFillViewport(true);
+        pageScroll.setClipToPadding(false);
+        pageScroll.setVerticalScrollBarEnabled(false);
+        pageScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        pageScroll.setBackground(Ui.background());
+        pageScroll.addView(root, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        setContentView(pageScroll);
         applyImmersiveMode();
     }
 
