@@ -29,21 +29,22 @@ import java.util.zip.ZipOutputStream;
 
 /**
  * The game's saves, imported and exported from the home screen. They live in Internal storage/Persona 3 Portable/user/save
- * as on the Switch: SYSTEM/SYSTEM.DAT and a DATAnn/ folder per slot. An import takes a ZIP or a folder (as JKSV or
- * Checkpoint export a Switch save, or as another player's export), finds the folder that holds DATAnn/ or SYSTEM/
- * wherever it sits inside, copies the current saves to user/save_backup_<date> first, then writes the imported files
- * over them (slots it does not bring stay). An export writes Download/P3P-saves-<date>.zip, which imports back as is.
+ * in user/save. Imports recognize the runtime's dataNNNN.bin files and Switch-style DATA##/ or SYSTEM/ folders
+ * anywhere inside a ZIP or selected folder. Current saves are backed up before imported files are written; slots not
+ * present in the imported set are preserved. Export writes Download/P3P-saves-<date>.zip.
  */
 final class SaveFiles {
     static final Pattern MARK = Pattern.compile("(?:^|/)(DATA\\d\\d|SYSTEM)/");
     static final Pattern SLOT = Pattern.compile("(?:^|/)DATA(\\d\\d)/");
     static final Pattern NATIVE_SLOT = Pattern.compile("(?i)^data(\\d{4})\\.bin$");
-    static final Pattern NATIVE_SAVE = Pattern.compile("(?i)(?:^|/)save/(?:P4G\\.ini|data\\d{4}\\.(?:bin|binslot))$");
+    static final Pattern NATIVE_DATA = Pattern.compile("(?i)(?:^|/)data\\d{4}\\.bin$");
+    static final Pattern NATIVE_FILE = Pattern.compile("(?i)(?:^|/)(?:P4G\\.ini|data\\d{4}\\.(?:bin|binslot))$");
     static final long MAX_BYTES = 256L << 20;  // a save is a few MB at most: anything bigger is not one
 
     /** What an import did: files written, the slots among them, the backup folder (null: there was nothing to keep). */
     static final class Result {
         int files;
+        long bytes;
         final TreeSet<String> slots = new TreeSet<>();
         String backup;
     }
@@ -54,17 +55,35 @@ final class SaveFiles {
 
     static String stamp() { return new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date()); }
 
-    /** The part of each path above the DATAnn/ or SYSTEM/ folders (the shortest one found), or null when none has them. */
+    /** Locate the native dataNNNN.bin folder or a Switch-style DATA##/ or SYSTEM/ save root. */
     static String prefix(List<String> paths) {
-        // Our own Export ZIP contains save/P4G.ini and save/dataNNNN.bin(.binslot).
-        // These are the actual P3P runtime save files; they do not use Switch DATA01/SYSTEM folders.
-        boolean nativeSave = false;
+        // Native P3P saves use P4G.ini and dataNNNN.bin/.binslot. Find that
+        // save directory anywhere in the archive/folder tree, not only at save/.
+        String nativePrefix = null;
         boolean nativeData = false;
+        boolean foundSaveFolder = false;
         for (String p : paths) {
-            if (NATIVE_SAVE.matcher(p).matches()) nativeSave = true;
-            if (p.matches("(?i)^save/data\\d{4}\\.bin$")) nativeData = true;
+            if (NATIVE_DATA.matcher(p).find()) {
+                nativeData = true;
+                int slash = p.lastIndexOf('/');
+                String parent = slash < 0 ? "" : p.substring(0, slash + 1);
+                int saveAt = -1;
+                String lower = p.toLowerCase(Locale.ROOT);
+                int at = lower.lastIndexOf("/save/");
+                if (at >= 0) saveAt = at + 1;
+                if (lower.startsWith("save/")) saveAt = 0;
+                if (saveAt >= 0) {
+                    String candidate = p.substring(0, saveAt + 5);
+                    if (!foundSaveFolder || candidate.length() < nativePrefix.length())
+                        nativePrefix = candidate;
+                    foundSaveFolder = true;
+                } else if (!foundSaveFolder
+                        && (nativePrefix == null || parent.length() < nativePrefix.length())) {
+                    nativePrefix = parent;
+                }
+            }
         }
-        if (nativeSave && nativeData) return "save/";
+        if (nativeData) return nativePrefix == null ? "" : nativePrefix;
 
         String best = null;
         for (String p : paths) {
@@ -77,12 +96,29 @@ final class SaveFiles {
         return best;
     }
 
+    /** Normalize separators and reject traversal/metadata paths before matching a save root. */
+    static String normalizeArchivePath(String raw) {
+        if (raw == null) return null;
+        String path = raw.replace('\\', '/');
+        while (path.startsWith("./")) path = path.substring(2);
+        if (path.startsWith("/") || path.matches("(?i)^[a-z]:.*")) return null;
+        for (String part : path.split("/"))
+            if (part.equals("..")) return null;
+        if (path.isEmpty() || path.endsWith("/") || path.startsWith("__MACOSX/")
+                || path.endsWith(".DS_Store")) return null;
+        return path;
+    }
+
     /** The path under the save folder for an imported path, or null to skip it (outside the save, or unsafe). */
     static String target(String path, String prefix) {
         if (!path.startsWith(prefix)) return null;
         String rel = path.substring(prefix.length());
-        if (rel.isEmpty() || rel.startsWith("/") || rel.contains("..") || rel.contains("\\")) return null;
+        if (rel.isEmpty() || rel.startsWith("/") || rel.contains("\\")) return null;
+        for (String part : rel.split("/"))
+            if (part.equals(".") || part.equals("..")) return null;
         if (rel.startsWith("__MACOSX/") || rel.endsWith(".DS_Store")) return null;
+        // Do not pull unrelated README/metadata files from the archive's parent folder.
+        if (!MARK.matcher(rel).find() && !NATIVE_FILE.matcher(rel).matches()) return null;
         return rel;
     }
 
@@ -124,7 +160,12 @@ final class SaveFiles {
         File dir = out.getParentFile();
         if (dir != null && !dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot make " + dir);
         try (OutputStream o = new FileOutputStream(out)) {
-            copy(in, o);
+            byte[] buf = new byte[1 << 16];
+            for (int n; (n = in.read(buf)) > 0; ) {
+                r.bytes += n;
+                if (r.bytes > MAX_BYTES) throw new IOException("save archive is too large");
+                o.write(buf, 0, n);
+            }
         }
         r.files++;
         Matcher m = SLOT.matcher(rel);
@@ -142,7 +183,8 @@ final class SaveFiles {
         try (ZipInputStream z = new ZipInputStream(cr.openInputStream(uri))) {
             for (ZipEntry e; (e = z.getNextEntry()) != null; )
                 if (!e.isDirectory()) {
-                    names.add(e.getName().replace('\\', '/'));
+                    String normalized = normalizeArchivePath(e.getName());
+                    if (normalized != null) names.add(normalized);
                     total += Math.max(0, e.getSize());
                 }
         }
@@ -154,7 +196,8 @@ final class SaveFiles {
         try (ZipInputStream z = new ZipInputStream(cr.openInputStream(uri))) {
             for (ZipEntry e; (e = z.getNextEntry()) != null; ) {
                 if (e.isDirectory()) continue;
-                String rel = target(e.getName().replace('\\', '/'), pre);
+                String normalized = normalizeArchivePath(e.getName());
+                String rel = normalized == null ? null : target(normalized, pre);
                 if (rel != null) {
                     // Enforce the limit on decompressed data too (ZIP entries often report size -1).
                     File out = new File(saveDir(), rel);
@@ -164,7 +207,9 @@ final class SaveFiles {
                         byte[] buf = new byte[1 << 16];
                         for (int n; (n = z.read(buf)) > 0; ) {
                             extracted += n;
-                            if (extracted > MAX_BYTES) throw new IOException("save archive is too large");
+                            r.bytes += n;
+                            if (extracted > MAX_BYTES || r.bytes > MAX_BYTES)
+                                throw new IOException("save archive is too large");
                             o.write(buf, 0, n);
                         }
                     }
@@ -190,7 +235,10 @@ final class SaveFiles {
             while (c.moveToNext()) {
                 String id = c.getString(0), name = c.getString(1), mime = c.getString(2);
                 if (Document.MIME_TYPE_DIR.equals(mime)) listTree(cr, tree, id, path + name + "/", out);
-                else out.put(path + name, DocumentsContract.buildDocumentUriUsingTree(tree, id));
+                else {
+                    String normalized = normalizeArchivePath(path + name);
+                    if (normalized != null) out.put(normalized, DocumentsContract.buildDocumentUriUsingTree(tree, id));
+                }
                 if (out.size() > 4096) throw new IOException("too many files: is this a save folder?");
             }
         }

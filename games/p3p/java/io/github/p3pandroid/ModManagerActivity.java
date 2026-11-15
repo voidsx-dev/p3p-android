@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,6 +13,7 @@ import android.os.Environment;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -46,9 +46,6 @@ public final class ModManagerActivity extends Activity {
     private static final int PICK_CPK = 71, PICK_ZIP = 72;
     private static final long MAX_UNPACKED = 8L * 1024L * 1024L * 1024L;
     private static final int MAX_ENTRIES = 30000;
-    private static final int BG = Color.rgb(7, 14, 31);
-    private static final int PANEL = Color.rgb(17, 29, 51);
-    private static final int BLUE = Color.rgb(54, 135, 245);
     private LinearLayout list;
     private TextView summary;
 
@@ -103,13 +100,6 @@ public final class ModManagerActivity extends Activity {
         return v;
     }
 
-    private GradientDrawable shape(int color, int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radius));
-        return d;
-    }
-
     private Button button(String label, boolean primary) {
         Button b = new Button(this);
         b.setAllCaps(false);
@@ -119,15 +109,19 @@ public final class ModManagerActivity extends Activity {
         b.setTextColor(Color.WHITE);
         b.setMinHeight(dp(48));
         b.setPadding(dp(12), dp(8), dp(12), dp(8));
-        b.setBackground(shape(primary ? BLUE : Color.rgb(35, 54, 82), 13));
+        b.setStateListAnimator(null);
+        b.setBackground(Ui.pressable(this,
+                Ui.shape(this, primary ? Ui.ACCENT : Ui.PILL, 13, primary ? 0 : Ui.STROKE), 13));
         return b;
     }
 
     private void build() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.setPadding(dp(22), dp(22), dp(22), dp(18));
-        root.setBackgroundColor(BG);
+        root.setBackground(Ui.background());
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
@@ -148,7 +142,7 @@ public final class ModManagerActivity extends Activity {
         LinearLayout summaryCard = new LinearLayout(this);
         summaryCard.setOrientation(LinearLayout.VERTICAL);
         summaryCard.setPadding(dp(16), dp(13), dp(16), dp(13));
-        summaryCard.setBackground(shape(PANEL, 16));
+        summaryCard.setBackground(Ui.shape(this, Ui.CARD, 16, Ui.STROKE));
         LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(-1, -2);
         summaryParams.topMargin = dp(16);
         summaryParams.bottomMargin = dp(12);
@@ -188,10 +182,16 @@ public final class ModManagerActivity extends Activity {
         installed.setPadding(0, dp(4), 0, dp(8));
         root.addView(installed);
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(list);
+        list.setClipToPadding(false);
+        list.setPadding(0, 0, 0, dp(18));
+        scroll.addView(list, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
         applyImmersiveMode();
@@ -222,7 +222,7 @@ public final class ModManagerActivity extends Activity {
                 String suggested = cleanName(filename.substring(0, filename.length() - 4));
                 android.widget.EditText destination = new android.widget.EditText(this);
                 destination.setSingleLine(true);
-                destination.setText(filename);
+                destination.setText("data_EN/" + filename);
                 destination.setHint("ex.: caminho/do/arquivo.cpk");
                 destination.setSelectAllOnFocus(true);
                 LinearLayout wrap = new LinearLayout(this);
@@ -305,60 +305,93 @@ public final class ModManagerActivity extends Activity {
     }
 
     private void importZip(Uri uri, String name) {
+        File mod = null;
         try {
-            // First pass: locate a romfs/ directory if the archive contains one.
+            // Find the actual RomFS root by path component, not by a loose substring.
+            // This accepts archives such as PTBR/romfs/... and
+            // MyTranslation/PTBR/romfs/data_EN/....
             String prefix = null;
             int entries = 0;
-            try (ZipInputStream z = new ZipInputStream(getContentResolver().openInputStream(uri))) {
+            try (InputStream raw = getContentResolver().openInputStream(uri);
+                 ZipInputStream z = new ZipInputStream(raw)) {
+                if (raw == null) throw new Exception("Não foi possível abrir o ZIP.");
                 for (ZipEntry e; (e = z.getNextEntry()) != null;) {
                     if (++entries > MAX_ENTRIES) throw new Exception("O ZIP contém arquivos demais.");
                     String p = safeZipName(e.getName());
                     if (p == null) continue;
-                    int at = p.toLowerCase(Locale.ROOT).indexOf("romfs/");
-                    if (at >= 0) {
-                        String candidate = p.substring(0, at);
-                        if (prefix == null || candidate.length() < prefix.length()) prefix = candidate;
+                    String[] parts = p.split("/");
+                    for (int i = 0; i < parts.length; i++) {
+                        if ("romfs".equalsIgnoreCase(parts[i])) {
+                            StringBuilder candidate = new StringBuilder();
+                            for (int j = 0; j < i; j++) candidate.append(parts[j]).append('/');
+                            String value = candidate.toString();
+                            if (prefix == null || value.length() < prefix.length()) prefix = value;
+                            break;
+                        }
                     }
                 }
             }
-            File mod = uniqueMod(name);
+
+            mod = uniqueMod(name);
             File romfs = new File(mod, "romfs");
             if (!romfs.mkdirs()) throw new Exception("Não foi possível criar a pasta romfs.");
             long total = 0;
             entries = 0;
-            try (ZipInputStream z = new ZipInputStream(getContentResolver().openInputStream(uri))) {
+            try (InputStream raw = getContentResolver().openInputStream(uri);
+                 ZipInputStream z = new ZipInputStream(raw)) {
+                if (raw == null) throw new Exception("Não foi possível abrir o ZIP.");
                 for (ZipEntry e; (e = z.getNextEntry()) != null;) {
                     if (e.isDirectory()) continue;
                     if (++entries > MAX_ENTRIES) throw new Exception("O ZIP contém arquivos demais.");
                     String path = safeZipName(e.getName());
                     if (path == null) continue;
-                    String rel;
+                    String rel = path;
                     if (prefix != null) {
-                        int at = path.toLowerCase(Locale.ROOT).indexOf("romfs/");
-                        if (at < 0) continue;
-                        rel = path.substring(at + 6);
-                    } else {
-                        rel = path;
+                        String[] parts = path.split("/");
+                        int at = -1;
+                        for (int i = 0; i < parts.length; i++) {
+                            if ("romfs".equalsIgnoreCase(parts[i])) { at = i; break; }
+                        }
+                        if (at < 0 || at + 1 >= parts.length) continue;
+                        StringBuilder relative = new StringBuilder();
+                        for (int i = at + 1; i < parts.length; i++) {
+                            if (relative.length() > 0) relative.append('/');
+                            relative.append(parts[i]);
+                        }
+                        rel = relative.toString();
                     }
                     if (rel.isEmpty()) continue;
+
+                    // Translation packs often label the archive PTBR/ but put a language
+                    // CPK directly in romfs/. The game loads that CPK from data_EN/.
+                    // Preserve explicit paths (data_EN/, movie/, etc.) unchanged.
+                    if (rel.toLowerCase(Locale.ROOT).endsWith(".cpk")
+                            && rel.indexOf('/') < 0) {
+                        rel = "data_EN/" + rel;
+                    } else if (rel.regionMatches(true, 0, "data_en/", 0, 8)) {
+                        rel = "data_EN/" + rel.substring(8);
+                    }
+
                     File out = new File(romfs, rel);
                     String rootPath = romfs.getCanonicalPath() + File.separator;
                     if (!out.getCanonicalPath().startsWith(rootPath)) continue;
                     File parent = out.getParentFile();
-                    if (!parent.isDirectory() && !parent.mkdirs()) throw new Exception("Não foi possível criar " + parent);
+                    if (!parent.isDirectory() && !parent.mkdirs())
+                        throw new Exception("Não foi possível criar " + parent);
                     try (OutputStream stream = new FileOutputStream(out)) {
                         total += copy(z, stream, MAX_UNPACKED - total);
                     }
-                    if (total > MAX_UNPACKED) throw new Exception("O ZIP excede o limite de extração.");
+                    if (total > MAX_UNPACKED)
+                        throw new Exception("O ZIP excede o limite de extração.");
                 }
             }
-            if (!hasFiles(romfs)) {
-                deleteTree(mod);
-                throw new Exception("Não encontrei arquivos RomFS válidos no ZIP.");
-            }
+            if (!hasFiles(romfs)) throw new Exception("Não encontrei arquivos RomFS válidos no ZIP.");
             refresh();
             toast("Mod importado: " + mod.getName());
-        } catch (Exception e) { error("Falha ao importar ZIP", e); }
+        } catch (Exception e) {
+            if (mod != null && mod.exists()) deleteTree(mod);
+            error("Falha ao importar ZIP", e);
+        }
     }
 
     private String safeZipName(String raw) {
@@ -460,7 +493,7 @@ public final class ModManagerActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(10), dp(14), dp(10));
-        card.setBackground(shape(PANEL, 15));
+        card.setBackground(Ui.shape(this, Ui.CARD, 15, Ui.STROKE));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
         cp.bottomMargin = dp(9);
         list.addView(card, cp);

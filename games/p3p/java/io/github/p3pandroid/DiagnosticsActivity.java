@@ -31,8 +31,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 /** Read-only device and game diagnostics; it does not change game settings. */
 public final class DiagnosticsActivity extends Activity {
-    private static final int BG = Color.rgb(7, 14, 31);
-    private static final int PANEL = Color.rgb(17, 29, 51);
+    private static final int PANEL = Ui.CARD;
     private TextView gpuValue;
     private String report = "";
 
@@ -88,24 +87,24 @@ public final class DiagnosticsActivity extends Activity {
     private void build() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(18), dp(20), dp(20));
-        root.setBackgroundColor(BG);
+        root.setPadding(dp(22), dp(22), dp(22), dp(22));
+        root.setBackground(Ui.background());
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text("DIAGNÓSTICO", 23, Color.WHITE, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        Button back = new Button(this);
-        back.setAllCaps(false);
-        back.setText("Voltar");
-        back.setOnClickListener(new View.OnClickListener() {
+        LinearLayout heading = new LinearLayout(this);
+        heading.setOrientation(LinearLayout.VERTICAL);
+        heading.addView(text("P3P ANDROID  •  FERRAMENTAS", 10, Ui.ACCENT, true));
+        heading.addView(text("Diagnóstico", 25, Ui.TEXT, true));
+        top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        Button back = Ui.action(this, "Voltar", new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
         top.addView(back);
         root.addView(top);
 
-        TextView intro = text("Informações para identificar problemas de compatibilidade e desempenho. Esta tela não altera as configurações.",
-                13, Color.LTGRAY, false);
+        TextView intro = text("Informações do dispositivo, compatibilidade e arquivos do jogo. Esta tela é somente leitura.",
+                13, Ui.MUTED, false);
         intro.setPadding(0, dp(8), 0, dp(12));
         root.addView(intro);
 
@@ -161,10 +160,7 @@ public final class DiagnosticsActivity extends Activity {
         item(content, out, "Espaço livre", formatBytes(fs.getAvailableBytes()));
 
         report = out.toString();
-        Button copy = new Button(this);
-        copy.setAllCaps(false);
-        copy.setText("Copiar diagnóstico");
-        copy.setOnClickListener(new View.OnClickListener() {
+        Button copy = Ui.action(this, "Copiar diagnóstico", new View.OnClickListener() {
             @Override public void onClick(View v) {
                 String full = report + "\nGPU (OpenGL ES): " + gpuValue.getText();
                 ClipboardManager cb = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
@@ -179,6 +175,9 @@ public final class DiagnosticsActivity extends Activity {
         root.addView(copy, bp);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(root);
         setContentView(scroll);
 
@@ -206,7 +205,7 @@ public final class DiagnosticsActivity extends Activity {
     }
 
     private void section(LinearLayout root, StringBuilder out, String title) {
-        TextView h = text(title, 12, Color.rgb(110, 175, 255), true);
+        TextView h = Ui.title(this, title);
         h.setPadding(0, dp(16), 0, dp(6));
         root.addView(h);
         out.append("\n").append(title).append("\n");
@@ -222,12 +221,12 @@ public final class DiagnosticsActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(12), dp(8), dp(12), dp(8));
-        card.setBackgroundColor(PANEL);
+        card.setBackground(Ui.shape(this, PANEL, 14, Ui.STROKE));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
         p.bottomMargin = dp(5);
         root.addView(card, p);
         card.addView(text(key, 11, Color.LTGRAY, true));
-        value.setPadding(0, dp(2), 0, 0);
+        value.setPadding(0, dp(3), 0, 0);
         card.addView(value);
     }
 
