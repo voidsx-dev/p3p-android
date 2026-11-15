@@ -176,11 +176,9 @@ const std::vector<TouchButton>& buttons() {
 
 // NX_TOUCH_SHOW=0 (launcher: On-screen buttons off): nothing is drawn and touches are ignored.
 bool touch_enabled() {
-    static const bool on = [] {
-        const char* e = std::getenv("NX_TOUCH_SHOW");
-        return !(e && e[0] == '0');
-    }();
-    return on;
+    // Read on demand so GameActivity's Quick Menu can toggle controls during gameplay.
+    const char* e = std::getenv("NX_TOUCH_SHOW");
+    return !(e && e[0] == '0');
 }
 
 // NX_TOUCH_MIRROR=1 (left-handed): the stick takes the right half of the screen instead of the left.
@@ -194,8 +192,8 @@ bool touch_mirrored() {
 
 // NX_TOUCH_OPACITY (10..100, default 85): the drawn buttons' brightness relative to the original look.
 float touch_opacity_scale() {
-    static const float s = float(std::clamp(env_int("NX_TOUCH_OPACITY", 85), 10, 100)) / 85.0f;
-    return s;
+    // Read on demand so opacity changes from the Quick Menu take effect immediately.
+    return float(std::clamp(env_int("NX_TOUCH_OPACITY", 85), 10, 100)) / 85.0f;
 }
 
 const TouchButton* touch_buttons(size_t& count) {
