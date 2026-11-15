@@ -44,6 +44,7 @@ public class ControlsEditor extends Activity {
 
     float[][] pos = new float[NAMES.length][];
     float sizeScale = 1;
+    boolean xboxStyle;
     EditorView view;
 
     String t(String spanish, String english) { return Lang.t(spanish, english); }
@@ -54,6 +55,7 @@ public class ControlsEditor extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Map<String, String> config = Launcher.readConfig(configFile());
+        xboxStyle = "xbox".equalsIgnoreCase(config.get("NX_TOUCH_STYLE"));
         try {
             sizeScale = Math.max(50, Math.min(160, Integer.parseInt(config.get("NX_TOUCH_SIZE")))) / 100f;
         } catch (Exception ignored) {
@@ -184,6 +186,17 @@ public class ControlsEditor extends Activity {
             paint.setTypeface(Typeface.DEFAULT_BOLD);
         }
 
+        String faceLabel(int i) {
+            if (!xboxStyle) return LABELS[i];
+            switch (i) {
+                case 0: return "B"; // right position
+                case 1: return "A"; // bottom position
+                case 2: return "Y"; // top position
+                case 3: return "X"; // left position
+                default: return LABELS[i];
+            }
+        }
+
         float radius(int i) {  // pixels: the stick's ring keeps its size, the buttons follow NX_TOUCH_SIZE
             return pos[i][2] * (i == STICK ? 1 : sizeScale) * getHeight();
         }
@@ -213,7 +226,7 @@ public class ControlsEditor extends Activity {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(Color.WHITE);
                 paint.setTextAlign(Paint.Align.CENTER);
-                String label = i == STICK ? t("Stick", "Stick") : LABELS[i];
+                String label = i == STICK ? t("Stick", "Stick") : faceLabel(i);
                 paint.setTextSize(i == STICK ? r * 0.35f : r * 0.8f);
                 c.drawText(label, cx, cy - (paint.ascent() + paint.descent()) / 2, paint);
             }

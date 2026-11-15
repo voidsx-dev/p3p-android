@@ -307,6 +307,8 @@ public class Launcher extends Activity {
                 new String[] {"Baja latencia", "Normal (más estable)"}, new String[] {"Low latency", "Normal (more stable)"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
                 new String[] {"Activados", "Desactivados"}, new String[] {"On", "Off"}, 0));
+        options.add(new Option("NX_TOUCH_STYLE", "Estilo dos botões", "Button layout style", new String[] {"switch", "xbox"},
+                new String[] {"Nintendo Switch", "Xbox"}, new String[] {"Nintendo Switch", "Xbox"}, 0));
         options.add(new Option("NX_TOUCH_SIZE", "Tamaño de los botones", "Button size",
                 new String[] {"80", "100", "125"}, new String[] {"Pequeño", "Normal", "Grande"},
                 new String[] {"Small", "Normal", "Large"}, 1));
