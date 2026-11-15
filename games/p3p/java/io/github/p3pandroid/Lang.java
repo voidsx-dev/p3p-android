@@ -304,6 +304,19 @@ final class Lang {
         put("Large", "Grande", "Groß", "Grande", "Grande", "大", "크게", "大", "大");
         put("Button opacity", "Opacité des boutons", "Deckkraft der Tasten", "Opacità dei pulsanti",
                 "Opacidade dos botões", "ボタンの不透明度", "버튼 불투명도", "按键不透明度", "按鍵不透明度");
+        put("Button layout style", "Disposition des boutons", "Tastenanordnung", "Disposizione dei pulsanti",
+                "Estilo dos botões", "ボタン配置", "버튼 배치", "按键布局", "按鍵配置");
+        put("Nintendo Switch", "Nintendo Switch", "Nintendo Switch", "Nintendo Switch", "Nintendo Switch",
+                "Nintendo Switch", "Nintendo Switch", "Nintendo Switch", "Nintendo Switch");
+        put("Xbox", "Xbox", "Xbox", "Xbox", "Xbox", "Xbox", "Xbox", "Xbox", "Xbox");
+        put("Use Nintendo button positions and labels.", "Utiliser la disposition et les symboles Nintendo.",
+                "Nintendo-Tastenanordnung und -Beschriftung verwenden.", "Usa la disposizione e le etichette Nintendo.",
+                "Usa o posicionamento e os símbolos Nintendo.", "Nintendo 配置とボタン表記を使用します。",
+                "Nintendo 버튼 배치와 표기를 사용합니다.", "使用 Nintendo 按键布局和标记。", "使用 Nintendo 按鍵配置和標記。");
+        put("Use Xbox button positions and labels.", "Utiliser la disposition et les symboles Xbox.",
+                "Xbox-Tastenanordnung und -Beschriftung verwenden.", "Usa la disposizione e le etichette Xbox.",
+                "Usa o posicionamento e os símbolos Xbox.", "Xbox 配置とボタン表記を使用します。",
+                "Xbox 버튼 배치와 표기를 사용합니다.", "使用 Xbox 按键布局和标记。", "使用 Xbox 按鍵配置和標記。");
         put("Controls position", "Position des commandes", "Position der Steuerung", "Posizione dei comandi",
                 "Posição dos controles", "操作ボタンの配置", "컨트롤 위치", "按键位置", "按鍵位置");
         put("Move", "Déplacer", "Verschieben", "Sposta", "Mover", "移動", "이동", "移动", "移動");

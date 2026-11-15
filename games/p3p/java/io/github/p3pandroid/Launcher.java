@@ -307,7 +307,7 @@ public class Launcher extends Activity {
                 new String[] {"Baja latencia", "Normal (más estable)"}, new String[] {"Low latency", "Normal (more stable)"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
                 new String[] {"Activados", "Desactivados"}, new String[] {"On", "Off"}, 0));
-        options.add(new Option("NX_TOUCH_STYLE", "Estilo dos botões", "Button layout style", new String[] {"switch", "xbox"},
+        options.add(new Option("NX_TOUCH_STYLE", "Estilo de botones", "Button layout style", new String[] {"switch", "xbox"},
                 new String[] {"Nintendo Switch", "Xbox"}, new String[] {"Nintendo Switch", "Xbox"}, 0));
         options.add(new Option("NX_TOUCH_SIZE", "Tamaño de los botones", "Button size",
                 new String[] {"80", "100", "125"}, new String[] {"Pequeño", "Normal", "Grande"},
@@ -573,6 +573,14 @@ public class Launcher extends Activity {
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(6), 0, dp(8));
         block.addView(Ui.label(this, t(o.es, o.en)));
+        final TextView styleHint;
+        if ("NX_TOUCH_STYLE".equals(o.key)) {
+            styleHint = Ui.hint(this, t("Usa o posicionamento e os símbolos Nintendo.",
+                    "Use Nintendo button positions and labels."));
+            block.addView(styleHint);
+        } else {
+            styleHint = null;
+        }
         LinearLayout seg = new LinearLayout(this);
         seg.setOrientation(LinearLayout.HORIZONTAL);
         o.pills.clear();
@@ -583,6 +591,11 @@ public class Launcher extends Activity {
                 @Override
                 public void onClick(View v) {
                     o.pick = choice;
+                    if (styleHint != null) {
+                        styleHint.setText(choice == 0
+                                ? t("Usa o posicionamento e os símbolos Nintendo.", "Use Nintendo button positions and labels.")
+                                : t("Usa o posicionamento e os símbolos Xbox.", "Use Xbox button positions and labels."));
+                    }
                     updateButtons(null);
                     save();
                 }
