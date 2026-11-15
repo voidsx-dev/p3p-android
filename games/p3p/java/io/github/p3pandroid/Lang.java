@@ -54,6 +54,20 @@ final class Lang {
     }
 
     static {
+        put("Quick menu", "Menu rapide", "Schnellmenü", "Menu rapido", "Menu rápido", "クイックメニュー", "빠른 메뉴", "快捷菜单", "快速選單");
+        put("Quick settings while playing", "Réglages rapides pendant le jeu", "Schnelleinstellungen während des Spiels", "Impostazioni rapide durante il gioco", "Ajustes rápidos durante a partida", "プレイ中のクイック設定", "플레이 중 빠른 설정", "游戏中的快捷设置", "遊戲中的快速設定");
+        put("Stretch screen", "Étirer l'écran", "Bildschirm strecken", "Allunga schermo", "Esticar tela", "画面を引き伸ばす", "화면 늘리기", "拉伸屏幕", "拉伸畫面");
+        put("Fills the screen; may distort the image.", "Remplit l'écran ; l'image peut être déformée.", "Füllt den Bildschirm; das Bild kann verzerrt werden.", "Riempie lo schermo; l'immagine potrebbe deformarsi.", "Preenche a tela; pode distorcer a imagem.", "画面全体に表示します。映像が歪む場合があります。", "화면을 채우며 이미지가 왜곡될 수 있습니다.", "填满屏幕；图像可能变形。", "填滿螢幕；影像可能變形。");
+        put("On-screen controls", "Commandes à l'écran", "Bildschirmsteuerung", "Controlli su schermo", "Controles na tela", "画面上の操作", "화면 컨트롤", "屏幕控制", "螢幕控制");
+        put("Show or hide the virtual buttons.", "Afficher ou masquer les boutons virtuels.", "Virtuelle Tasten ein- oder ausblenden.", "Mostra o nasconde i pulsanti virtuali.", "Mostrar ou ocultar os botões virtuais.", "仮想ボタンを表示または非表示にします。", "가상 버튼 표시 또는 숨기기", "显示或隐藏虚拟按键。", "顯示或隱藏虛擬按鍵。");
+        put("Control opacity", "Opacité des commandes", "Transparenz der Steuerung", "Opacità dei controlli", "Opacidade dos controles", "操作ボタンの不透明度", "컨트롤 불투명도", "控制透明度", "控制透明度");
+        put("Change applies immediately.", "Le changement s'applique immédiatement.", "Die Änderung wird sofort übernommen.", "La modifica viene applicata subito.", "Ajuste aplicado imediatamente.", "変更はすぐに反映されます。", "변경 사항이 즉시 적용됩니다.", "更改会立即生效。", "變更會立即生效。");
+        put("Other options stay in the Launcher because they must be set before the game starts.", "Les autres options restent dans le Launcher, car elles doivent être définies avant le démarrage du jeu.", "Andere Optionen bleiben im Launcher, da sie vor dem Spielstart festgelegt werden müssen.", "Le altre opzioni restano nel Launcher perché vanno impostate prima di avviare il gioco.", "As demais opções ficam no Launcher porque precisam ser definidas antes de iniciar o jogo.", "その他の設定はゲーム開始前に設定する必要があるため、ランチャーに残ります。", "다른 옵션은 게임 시작 전에 설정해야 하므로 런처에 유지됩니다.", "其他选项需要在游戏启动前设置，因此保留在启动器中。", "其他選項需要在遊戲啟動前設定，因此保留在啟動器中。");
+        put("Exit game", "Quitter le jeu", "Spiel beenden", "Esci dal gioco", "Sair do jogo", "ゲームを終了", "게임 종료", "退出游戏", "結束遊戲");
+        put("Resume game", "Reprendre le jeu", "Spiel fortsetzen", "Riprendi il gioco", "Continuar jogando", "ゲームに戻る", "게임 계속하기", "继续游戏", "繼續遊戲");
+        put("Exit game?", "Quitter le jeu ?", "Spiel beenden?", "Uscire dal gioco?", "Sair do jogo?", "ゲームを終了しますか？", "게임을 종료할까요?", "退出游戏？", "結束遊戲？");
+        put("You will return to the Launcher.", "Vous retournerez au Launcher.", "Du kehrst zum Launcher zurück.", "Tornerai al Launcher.", "Você voltará para o Launcher.", "ランチャーに戻ります。", "런처로 돌아갑니다.", "你将返回启动器。", "你將返回啟動器。");
+        put("Keep playing", "Continuer à jouer", "Weiterspielen", "Continua a giocare", "Continuar", "プレイを続ける", "계속 플레이", "继续游戏", "繼續遊戲");
         // Options
         // Added with the 0.3.0 options screen and the texts that were missing
         put("Tools", "Outils", "Werkzeuge", "Strumenti", "Ferramentas", "ツール", "도구", "工具", "工具");
