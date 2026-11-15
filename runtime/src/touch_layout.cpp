@@ -121,6 +121,11 @@ int env_int(const char* name, int fallback) {
     return e && *e ? std::atoi(e) : fallback;
 }
 
+bool xbox_style() {
+    const char* e = std::getenv("NX_TOUCH_STYLE");
+    return e && std::strcmp(e, "xbox") == 0;
+}
+
 // The layout as the launcher set it (config.txt, which becomes the environment): NX_TOUCH_LAYOUT replaces the positions
 // and radii of the named buttons, NX_TOUCH_SIZE (50..160, percent) scales every radius. Read once.
 const std::vector<TouchButton>& buttons() {
@@ -131,6 +136,15 @@ const std::vector<TouchButton>& buttons() {
         for (size_t k = 0; k < l->count; k++) {
             out.push_back(l->buttons[k].b);
             layout_entry(l->buttons[k].name, out[k].x, out[k].y, out[k].r);
+            // Xbox face-button legends and actions follow Xbox physical positions. The game still
+            // receives its native Nintendo-style logical buttons after this deliberate profile swap.
+            if (xbox_style()) {
+                auto& b = out[k];
+                if (b.button == kA) { b.button = kB; b.label = touch_label(kGlyphB); }
+                else if (b.button == kB) { b.button = kA; b.label = touch_label(kGlyphA); }
+                else if (b.button == kX) { b.button = kY; b.label = touch_label(kGlyphY); }
+                else if (b.button == kY) { b.button = kX; b.label = touch_label(kGlyphX); }
+            }
         }
         float scale = float(std::clamp(env_int("NX_TOUCH_SIZE", 100), 50, 160)) / 100.0f;
         for (auto& b : out) b.r *= scale;
@@ -202,7 +216,7 @@ uint64_t touch_hit(float x, float y, float aspect) {
     float best_d = 1e9f;
     for (size_t k = 0; k < n; k++) {
         float d = std::hypot((x - b[k].x) * aspect, y - b[k].y) / b[k].r;
-        if (d < 1.35f && d < best_d) best = b[k].button, best_d = d;  // a little past the drawn edge still counts
+        if (d < 1.50f && d < best_d) best = b[k].button, best_d = d;  // a little past the drawn edge still counts
     }
     return best;
 }

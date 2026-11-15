@@ -83,11 +83,15 @@ uint64_t g_last_touch_ns = 0;  // the drawn controls dim after kTouchIdleNs with
 constexpr uint64_t kTouchIdleNs = 8'000'000'000;
 
 uint64_t key_to_button(int32_t k) {
+    const char* style = std::getenv("NX_TOUCH_STYLE");
+    const bool xbox = style && std::strcmp(style, "xbox") == 0;
     switch (k) {
-        case AKEYCODE_BUTTON_A: return kB;  // bottom face button = Nintendo B
-        case AKEYCODE_BUTTON_B: return kA;  // right face button = Nintendo A
-        case AKEYCODE_BUTTON_X: return kY;
-        case AKEYCODE_BUTTON_Y: return kX;
+        // Android's standardized face keys describe physical positions. The selected profile
+        // decides which logical face-button action those positions produce.
+        case AKEYCODE_BUTTON_A: return xbox ? kA : kB;  // bottom
+        case AKEYCODE_BUTTON_B: return xbox ? kB : kA;  // right
+        case AKEYCODE_BUTTON_X: return xbox ? kX : kY;  // left
+        case AKEYCODE_BUTTON_Y: return xbox ? kY : kX;  // top
         case AKEYCODE_BUTTON_L1: return kL;
         case AKEYCODE_BUTTON_R1: return kR;
         case AKEYCODE_BUTTON_L2: return kZL;
