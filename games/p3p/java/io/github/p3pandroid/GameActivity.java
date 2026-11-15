@@ -5,6 +5,7 @@ import android.app.NativeActivity;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.content.Intent;
+import android.content.DialogInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
@@ -13,6 +14,8 @@ import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.View;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -106,13 +109,21 @@ public class GameActivity extends NativeActivity {
         LinearLayout stretch = menuRow(Lang.t("Estirar pantalla", "Stretch screen"), Lang.t("Llena la pantalla; puede distorsionar la imagen.", "Fills the screen; may distort the image."));
         Switch stretchSwitch = new Switch(this);
         stretchSwitch.setChecked("1".equals(value("NX_STRETCH", "0")));
-        stretchSwitch.setOnCheckedChangeListener((b, checked) -> applyLive("NX_STRETCH", checked ? "1" : "0"));
+        stretchSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(CompoundButton button, boolean checked) {
+                applyLive("NX_STRETCH", checked ? "1" : "0");
+            }
+        });
         stretch.addView(stretchSwitch); panel.addView(stretch);
 
         LinearLayout controls = menuRow(Lang.t("Controles en pantalla", "On-screen controls"), Lang.t("Mostrar u ocultar los botones virtuales.", "Show or hide the virtual buttons."));
         Switch controlsSwitch = new Switch(this);
         controlsSwitch.setChecked(!"0".equals(value("NX_TOUCH_SHOW", "1")));
-        controlsSwitch.setOnCheckedChangeListener((b, checked) -> applyLive("NX_TOUCH_SHOW", checked ? "1" : "0"));
+        controlsSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(CompoundButton button, boolean checked) {
+                applyLive("NX_TOUCH_SHOW", checked ? "1" : "0");
+            }
+        });
         controls.addView(controlsSwitch); panel.addView(controls);
 
         LinearLayout opacity = menuRow(Lang.t("Opacidad de los controles", "Control opacity"), Lang.t("El cambio se aplica inmediatamente.", "Change applies immediately."));
@@ -120,13 +131,16 @@ public class GameActivity extends NativeActivity {
         choices.setOrientation(LinearLayout.HORIZONTAL);
         String currentOpacity = value("NX_TOUCH_OPACITY", "85");
         for (String amount : new String[] {"35", "60", "85"}) {
-            TextView pill = Ui.pill(this, amount + "%");
-            Ui.setSelected(this, pill, amount.equals(currentOpacity));
-            pill.setOnClickListener(v -> {
-                applyLive("NX_TOUCH_OPACITY", amount);
-                if (quickMenu != null) quickMenu.dismiss();
-                quickMenu = null;
-                showQuickMenu();
+            final String selectedAmount = amount;
+            TextView pill = Ui.pill(this, selectedAmount + "%");
+            Ui.setSelected(this, pill, selectedAmount.equals(currentOpacity));
+            pill.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view) {
+                    applyLive("NX_TOUCH_OPACITY", selectedAmount);
+                    if (quickMenu != null) quickMenu.dismiss();
+                    quickMenu = null;
+                    showQuickMenu();
+                }
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(62), ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.leftMargin = dp(4); choices.addView(pill, lp);
@@ -140,9 +154,11 @@ public class GameActivity extends NativeActivity {
         exit.setGravity(Gravity.CENTER); exit.setTextColor(Color.rgb(255, 150, 150)); exit.setTextSize(15);
         exit.setPadding(0, dp(13), 0, dp(13));
         exit.setBackground(Ui.pressable(this, Ui.shape(this, Color.rgb(62, 25, 39), 12, Color.rgb(115, 49, 67)), 12));
-        exit.setOnClickListener(v -> {
-            dialog.dismiss();
-            finish(); // GameActivity is isolated from the Launcher process; finishing returns to it.
+        exit.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                dialog.dismiss();
+                finish(); // GameActivity is isolated from the Launcher process; finishing returns to it.
+            }
         });
         panel.addView(exit);
 
@@ -151,14 +167,20 @@ public class GameActivity extends NativeActivity {
         resume.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         resume.setPadding(0, dp(13), 0, dp(13));
         resume.setBackground(Ui.pressable(this, Ui.shape(this, Ui.ACCENT_DARK, 12, 0), 12));
-        resume.setOnClickListener(v -> dialog.dismiss());
+        resume.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { dialog.dismiss(); }
+        });
         LinearLayout.LayoutParams resumeLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         resumeLp.topMargin = dp(8); panel.addView(resume, resumeLp);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true); scroll.addView(panel);
         dialog.setContentView(scroll);
-        dialog.setOnDismissListener(d -> { if (quickMenu == dialog) quickMenu = null; });
+        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override public void onDismiss(DialogInterface dismissed) {
+                if (quickMenu == dialog) quickMenu = null;
+            }
+        });
         dialog.show();
         Window w = dialog.getWindow();
         if (w != null) {
