@@ -11,8 +11,6 @@ Added
 
 Improved
 
-- P3P touch layout: larger face buttons, shoulder buttons, and d-pad, with more comfortable spacing.
-- Touch controls remain more visible during idle scenes and brighten more clearly while pressed.
 - Localized the Nintendo Switch / Xbox control profile and its explanation in all 10 launcher languages.
 
 Preserved
