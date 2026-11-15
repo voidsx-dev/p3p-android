@@ -450,14 +450,34 @@ public class Launcher extends Activity {
                     }
                 });
 
-        // Saves: in from a ZIP or a folder (a Switch backup or another player's), out to a ZIP in Download.
+        // Saves: a dedicated, launcher-styled backup panel. Import/export behavior is unchanged.
         LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
+
+        TextView savesIntro = new TextView(this);
+        savesIntro.setText(t("PROTEJA SEU PROGRESSO", "PROTECT YOUR PROGRESS"));
+        savesIntro.setTextColor(Ui.TEXT);
+        savesIntro.setTextSize(14);
+        savesIntro.setTypeface(Typeface.DEFAULT_BOLD);
+        savesIntro.setLetterSpacing(0.035f);
+        savesIntro.setPadding(0, dp(2), 0, dp(5));
+        saves.addView(savesIntro);
+
+        TextView savesHint = new TextView(this);
+        savesHint.setText(t("Importe um backup ZIP ou uma pasta de saves. Exporte suas partidas para guardar ou transferir para outro aparelho.",
+                "Import a backup ZIP or a save folder. Export your saves to keep a backup or move them to another device."));
+        savesHint.setTextColor(Ui.MUTED);
+        savesHint.setTextSize(12.5f);
+        savesHint.setLineSpacing(0, 1.12f);
+        savesHint.setPadding(0, 0, 0, dp(13));
+        saves.addView(savesHint);
+
         LinearLayout saveButtons = new LinearLayout(this);
         saveButtons.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        right.leftMargin = dp(8);
-        saveButtons.addView(Ui.action(this, t("Importar", "Import"), new View.OnClickListener() {
+        saveButtons.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(0, dp(48), 1);
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, dp(48), 1);
+        right.leftMargin = dp(9);
+        Button importSaveButton = Ui.action(this, t("↓  Importar", "↓  Import"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -466,8 +486,8 @@ public class Launcher extends Activity {
                 }
                 askImport();
             }
-        }), left);
-        saveButtons.addView(Ui.action(this, t("Exportar", "Export"), new View.OnClickListener() {
+        });
+        Button exportSaveButton = Ui.action(this, t("↑  Exportar", "↑  Export"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -476,8 +496,22 @@ public class Launcher extends Activity {
                 }
                 exportSaves();
             }
-        }), right);
+        });
+        importSaveButton.setTextSize(13.5f);
+        exportSaveButton.setTextSize(13.5f);
+        importSaveButton.setMinWidth(0);
+        exportSaveButton.setMinWidth(0);
+        saveButtons.addView(importSaveButton, left);
+        saveButtons.addView(exportSaveButton, right);
         saves.addView(saveButtons);
+
+        TextView savesFootnote = new TextView(this);
+        savesFootnote.setText(t("Um backup atual é criado antes da importação.",
+                "A backup of your current saves is created before importing."));
+        savesFootnote.setTextColor(Ui.MUTED);
+        savesFootnote.setTextSize(11.5f);
+        savesFootnote.setPadding(0, dp(10), 0, 0);
+        saves.addView(savesFootnote);
 
         // The Play button stays at the bottom while the options scroll.
         play = Ui.primary(this);
