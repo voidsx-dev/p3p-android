@@ -260,7 +260,7 @@ size_t touch_overlay(OverlayShape* out, size_t max) {
     if (g_gamepad || !touch_enabled()) return 0;
     // Dimmed to a third while nobody touches the screen (cutscenes, videos), back at once on the next touch.
     const bool idle = g_touches.empty() && monotonic_ns() - g_last_touch_ns > kTouchIdleNs;
-    const float shade = touch_opacity_scale() * (idle ? 0.35f : 1.0f);
+    const float shade = touch_opacity_scale() * (idle ? 0.50f : 1.0f);
     const Touch* stick = nullptr;
     const Touch* camera = nullptr;
     uint64_t held = 0;
@@ -271,13 +271,13 @@ size_t touch_overlay(OverlayShape* out, size_t max) {
     }
     for (const auto& l : g_latched) held |= l.button;
     for (size_t i = 0; i < n && k < max; i++)
-        out[k++] = {b[i].x, b[i].y, b[i].r, std::min(1.0f, (held & b[i].button ? 0.5f : 0.2f) * shade), b[i].label};
+        out[k++] = {b[i].x, b[i].y, b[i].r, std::min(1.0f, (held & b[i].button ? 0.60f : 0.28f) * shade), b[i].label};
     // A stick under the thumb: its ring where the finger went down and the knob where it is now.
     auto draw_stick = [&](const Touch& t) {
         if (k + 2 > max) return;
         float r = 0.12f, dx = (t.x - t.x0) / g_h, dy = (t.y - t.y0) / g_h;
         float len = std::hypot(dx, dy), s = len > r ? r / len : 1.f;
-        out[k++] = {t.x0 / g_w, t.y0 / g_h, r, std::min(1.0f, 0.14f * shade)};
+        out[k++] = {t.x0 / g_w, t.y0 / g_h, r, std::min(1.0f, 0.18f * shade)};
         out[k++] = {(t.x0 / g_h + dx * s) * g_h / g_w, t.y0 / g_h + dy * s, 0.055f, std::min(1.0f, 0.45f * shade)};
     };
     if (stick) {

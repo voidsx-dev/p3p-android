@@ -67,6 +67,25 @@ const Named kP5R[] = {
     {"RIGHT", {0.185f, 0.40f, 0.048f, kRight, touch_label(kGlyphRight)}},
 };
 
+// P3P gets a roomier layout: larger face buttons, shoulders and d-pad, with a little more space
+// between the face-button cluster and the screen edge. The hit areas grow with the visible controls.
+const Named kP3P[] = {
+    {"A", {0.925f, 0.67f, 0.078f, kA, touch_label(kGlyphA)}},
+    {"B", {0.860f, 0.80f, 0.078f, kB, touch_label(kGlyphB)}},
+    {"X", {0.860f, 0.54f, 0.078f, kX, touch_label(kGlyphX)}},
+    {"Y", {0.795f, 0.67f, 0.078f, kY, touch_label(kGlyphY)}},
+    {"R", {0.945f, 0.08f, 0.058f, kR, touch_label(kGlyphR)}},
+    {"ZR", {0.945f, 0.24f, 0.058f, kZR, touch_label(kGlyphZ, kGlyphR)}},
+    {"L", {0.055f, 0.08f, 0.058f, kL, touch_label(kGlyphL)}},
+    {"ZL", {0.055f, 0.24f, 0.058f, kZL, touch_label(kGlyphZ, kGlyphL)}},
+    {"MINUS", {0.440f, 0.07f, 0.050f, kMinus, touch_label(kGlyphMinus)}},
+    {"PLUS", {0.560f, 0.07f, 0.050f, kPlus, touch_label(kGlyphPlus)}},
+    {"UP", {0.140f, 0.31f, 0.055f, kUp, touch_label(kGlyphUp)}},
+    {"DOWN", {0.140f, 0.49f, 0.055f, kDown, touch_label(kGlyphDown)}},
+    {"LEFT", {0.090f, 0.40f, 0.055f, kLeft, touch_label(kGlyphLeft)}},
+    {"RIGHT", {0.190f, 0.40f, 0.055f, kRight, touch_label(kGlyphRight)}},
+};
+
 struct Layout {
     const char* game;
     const Named* buttons;
@@ -79,9 +98,9 @@ struct Layout {
 const Layout kLayouts[] = {
     {"wonder", kWonder, std::size(kWonder), false, kY, 0.15f, 0.72f},
     {"p5r", kP5R, std::size(kP5R), true, 0, 0.15f, 0.76f},
-    // P3P's ControlsEditor uses this same layout. Its own game id must be registered
-    // so both the overlay and touch hit-testing use the visible buttons.
-    {"p3p", kP5R, std::size(kP5R), true, 0, 0.15f, 0.76f},
+    // P3P has its own roomier layout, mirrored by ControlsEditor. Its own game id must be registered
+    // so both the overlay and touch hit-testing use the same visible buttons.
+    {"p3p", kP3P, std::size(kP3P), true, 0, 0.15f, 0.76f},
 };
 
 const Layout* layout() {
