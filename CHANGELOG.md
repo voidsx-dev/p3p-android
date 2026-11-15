@@ -4,6 +4,11 @@ All notable changes to P3P Android are documented here.
 
 [0.4.0] - Unreleased
 
+Added
+
+- Pressing the Android Back button opens the in-game Quick Menu (no floating trigger), styled to match the Launcher, with Resume and Exit actions.
+- Live Stretch Screen toggle, virtual touch controls visibility, and touch-control opacity (35%, 60%, 85%).
+
 Improved
 
 - P3P touch layout: larger face buttons, shoulder buttons, and d-pad, with more comfortable spacing.
@@ -13,10 +18,6 @@ Improved
 Preserved
 
 - Existing FSR, 720p/1080p, FPS cap, CPU affinity, heap tuning, GPU scheduling, audio, saves, and Stretch Screen behavior.
-
-Planned
-
-- A separate in-game quick-settings overlay, allowing basic options to be changed without closing the game.
 
 
 [0.3.0] - Released
