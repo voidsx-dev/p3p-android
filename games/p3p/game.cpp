@@ -19,7 +19,7 @@ const game::Info game::kInfo = {"p3p", "Persona 3 Portable", kP3pTitleId, "io.gi
 namespace {
 
 uint64_t g_main_base = 0, g_sdk_base = 0;
-uint64_t g_abort_orig = 0, g_abort_msg_orig = 0, g_send_orig = 0;
+uint64_t g_abort_orig = 0, g_abort_msg_orig = 0, g_send_orig = 0, g_resource_parse_orig = 0;
 
 bool readable(uint64_t p, uint64_t n) { return p >= 0x100000 && n <= 0x100000 && p + n < 0x7000000000ull; }
 
@@ -172,6 +172,21 @@ void fputs_logged(CPU& c) {
     else c.x[0] = 0;
 }
 
+// Optional, one-purpose trace for the P3P interface-message parser. The Tartarus floor-190
+// crash is a null result from main+0x1b4980 followed by a dereference in itfMesManager.
+// Keep this disabled in normal play: the parser is called frequently.
+void resource_parse_hook(CPU& c) {
+    const uint64_t caller = c.x[30];
+    const uint64_t a0 = c.x[0], a1 = c.x[1], a2 = c.x[2], a3 = c.x[3];
+    const uint64_t a4 = c.x[4], a5 = c.x[5], a6 = c.x[6], a7 = c.x[7];
+    if (g_resource_parse_orig) call(c, g_resource_parse_orig);
+    if (c.x[0] == 0 && g_main_base && caller - g_main_base == 0x1bbba0)
+        log("p3p: NULL message-parser result caller=main+%llx args=%llx,%llx,%llx,%llx,%llx,%llx,%llx,%llx",
+            (unsigned long long)(caller - g_main_base), (unsigned long long)a0, (unsigned long long)a1,
+            (unsigned long long)a2, (unsigned long long)a3, (unsigned long long)a4, (unsigned long long)a5,
+            (unsigned long long)a6, (unsigned long long)a7);
+}
+
 void hid_nop(CPU& c) { c.x[0] = 0; }
 
 }  // namespace
@@ -223,6 +238,11 @@ void game::after_init() {
     };
     hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_i", 0x8d9f0, abort_hook, g_abort_orig, "AbortImpl");
     hook("_ZN2nn4diag6detail9AbortImplEPKcS3_S3_iS3_z", 0x8d980, abort_msg_hook, g_abort_msg_orig, "AbortImpl(msg)");
+    // Opt-in only: captures the exact caller/arguments when P3P's message parser returns null.
+    if (const char* trace = std::getenv("P3P_TRACE_NULL_RESOURCE"); trace && trace[0] == '1' && g_main_base) {
+        g_resource_parse_orig = hook_function(g_main_base + 0x1b4980, resource_parse_hook);
+        log("p3p: hook null message parser: %s", g_resource_parse_orig ? "ok" : "FAILED");
+    }
     // IPC text tracing is diagnostic-only. Keep it off in normal play to avoid inspecting and allocating strings
     // for every guest IPC request; set P3P_TRACE_IPC=1 in config.txt when troubleshooting.
     if (const char* trace = std::getenv("P3P_TRACE_IPC"); trace && trace[0] == '1')
