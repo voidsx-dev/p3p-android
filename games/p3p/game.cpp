@@ -193,12 +193,6 @@ NX_HLE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", hid_nop);
 
 void game::after_init() {
     log("p3p: after_init");
-    // P3P Switch does not ship Portuguese text. When Android is set to pt-BR and the player uses
-    // language=auto, keep the game's language/font parser on a language this title actually supports.
-    // Without this list, language_for_game() can pass pt-BR through unchanged and the message parser
-    // may return null; the game later dereferences that missing message object during a scene transition.
-    setenv("NX_GAME_LANGUAGES", "ja en-us fr de it es ko zh-hans zh-hant", 0);
-    log("p3p: supported text languages: ja en-US fr de it es ko zh-Hans zh-Hant");
     setenv("NX_DUMP_SHADER_MISSES", "1", 0);
       {   // P3P's window origin: Vulkan's own viewport mapping, the final picture turned over (nvn_draw.cpp origin_flags)
         const std::string flags_path = plat::data_root() + "/live_flags.txt";
