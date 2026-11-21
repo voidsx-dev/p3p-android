@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.system.Os;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
@@ -27,6 +28,8 @@ import android.widget.TextView;
  *    own process that took the launcher with it, so the game has a process of its own: leaving it lands on the
  *    launcher, which keeps running.
  *  - Back opens the in-game Quick Menu. The explicit "Exit game" action asks for confirmation before returning to the Launcher.
+ * With a controller, its Home (Guide) button opens the same menu (the game does not use that button, so it reaches here
+ * as an unhandled key).
  * The launcher cannot hand over the game file as an open descriptor to another process (an Intent may not carry one),
  * nor as environment variables, so it passes the file's Uri and name and this activity opens the file itself, in the
  * same way (the launcher holds a persistent read grant) and sets the NX_* variables the runtime reads (game_image.cpp).
@@ -105,6 +108,8 @@ public class GameActivity extends NativeActivity {
         panel.setBackground(Ui.shape(this, Ui.BG_TOP, 20, Ui.STROKE));
         panel.addView(menuTitle(Lang.t("Menú rápido", "Quick menu")));
         panel.addView(Ui.hint(this, Lang.t("Ajustes rápidos durante la partida", "Quick settings while playing")));
+        panel.addView(Ui.hint(this, Lang.t("Con un mando, este menú se abre con su botón Home (Guía).",
+                "With a controller, this menu opens with its Home (Guide) button.")));
 
         LinearLayout stretch = menuRow(Lang.t("Estirar pantalla", "Stretch screen"), Lang.t("Llena la pantalla; puede distorsionar la imagen.", "Fills the screen; may distort the image."));
         Switch stretchSwitch = new Switch(this);
@@ -146,6 +151,16 @@ public class GameActivity extends NativeActivity {
             lp.leftMargin = dp(4); choices.addView(pill, lp);
         }
         opacity.addView(choices); panel.addView(opacity);
+
+        LinearLayout fps = menuRow(Lang.t("Contador de FPS", "FPS counter"), null);
+        Switch fpsSwitch = new Switch(this);
+        fpsSwitch.setChecked("1".equals(value("NX_SHOW_FPS", "0")));
+        fpsSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(CompoundButton button, boolean checked) {
+                applyLive("NX_SHOW_FPS", checked ? "1" : "0");
+            }
+        });
+        fps.addView(fpsSwitch); panel.addView(fps);
 
         TextView note = Ui.hint(this, Lang.t("Las demás opciones permanecen en el Launcher porque deben configurarse antes de iniciar el juego.", "Other options stay in the Launcher because they must be set before the game starts."));
         note.setPadding(0, dp(10), 0, dp(8)); panel.addView(note);
@@ -191,6 +206,19 @@ public class GameActivity extends NativeActivity {
             a.height = Math.min(dp(520), getResources().getDisplayMetrics().heightPixels - dp(64));
             a.dimAmount = 0.55f; w.setAttributes(a);
         }
+    }
+
+    // The controller's Home (Guide) button: the game ignores it, so it comes here; it opens and closes the Quick menu.
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (ev.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE) {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN && ev.getRepeatCount() == 0) {
+                if (quickMenu != null && quickMenu.isShowing()) quickMenu.dismiss();
+                else showQuickMenu();
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(ev);
     }
 
     @Override

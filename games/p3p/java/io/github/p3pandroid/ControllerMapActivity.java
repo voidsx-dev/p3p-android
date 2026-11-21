@@ -60,6 +60,8 @@ public final class ControllerMapActivity extends Activity implements InputManage
     static final float PUSH = 0.6f;     // how far an axis moves from rest to count as pushed
 
     PadMapping map = new PadMapping();
+    boolean mapOn = true;  // NX_PAD_MAP_ON: off keeps the mapping saved but unused (another controller)
+    TextView onPill, offPill;
     String style = "switch";  // the launcher's button layout style: what the live test says an unmapped key does
 
     // the screen
@@ -101,6 +103,7 @@ public final class ControllerMapActivity extends Activity implements InputManage
         applyImmersiveMode();
         Map<String, String> config = Launcher.readConfig(configFile());
         map = PadMapping.parse(config.get(PadMapping.KEY));
+        mapOn = !"0".equals(config.get("NX_PAD_MAP_ON"));
         String s = config.get("NX_TOUCH_STYLE");
         if (s != null) style = s;
         build();
@@ -264,6 +267,30 @@ public final class ControllerMapActivity extends Activity implements InputManage
         hintText = Ui.hint(this, t("Pulsa un botón o mueve una palanca del mando para ver qué hace.",
                 "Press a button or move a stick on your controller to see what it does."));
         live.addView(hintText);
+
+        // Use my mapping: off keeps it saved but unused, to play with another controller
+        LinearLayout use = Ui.card(this, content);
+        LinearLayout useRow = new LinearLayout(this);
+        useRow.setGravity(Gravity.CENTER_VERTICAL);
+        useRow.addView(Ui.label(this, t("Usar mi mapeo", "Use my mapping")),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        onPill = Ui.pill(this, t("Activado", "On"));
+        offPill = Ui.pill(this, t("Desactivado", "Off"));
+        onPill.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { setMapOn(true); }
+        });
+        offPill.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { setMapOn(false); }
+        });
+        LinearLayout.LayoutParams pillLp = new LinearLayout.LayoutParams(dp(120), LinearLayout.LayoutParams.WRAP_CONTENT);
+        pillLp.leftMargin = dp(6);
+        useRow.addView(onPill, pillLp);
+        useRow.addView(offPill, pillLp);
+        use.addView(useRow);
+        use.addView(Ui.hint(this, t("Desactívalo para jugar con otro mando sin perder tu mapeo.",
+                "Turn it off to play with another controller without losing your mapping.")));
+        Ui.setSelected(this, onPill, mapOn);
+        Ui.setSelected(this, offPill, !mapOn);
 
         // Buttons
         LinearLayout buttons = Ui.card(this, content);
@@ -506,13 +533,13 @@ public final class ControllerMapActivity extends Activity implements InputManage
     void updateHeld() {
         Set<String> held = new HashSet<String>();
         for (int code : keysDown) {
-            String a = map.actionOf(PadMapping.keyToken(code));
+            String a = customAction(PadMapping.keyToken(code));
             if (a == null) a = PadMapping.defaultAction(code, style);
             if (a != null) held.add(a);
         }
         for (int axis = 0; axis < axisDir.length; axis++) {
             if (axisDir[axis] == 0) continue;
-            String a = map.actionOf(PadMapping.axisToken(axis, axisDir[axis]));
+            String a = customAction(PadMapping.axisToken(axis, axisDir[axis]));
             if (a == null) a = PadMapping.defaultAxisAction(axis, axisDir[axis]);
             if (a != null) held.add(a);
         }
@@ -522,7 +549,7 @@ public final class ControllerMapActivity extends Activity implements InputManage
 
     /** What an input does now: its mapped (or built-in) action, or nothing. */
     void showLive(String token, String builtIn) {
-        String custom = map.actionOf(token);
+        String custom = customAction(token);
         String action = custom != null ? custom : builtIn;
         String result;
         if (action == null) result = t("No lo usa el juego", "Not used by the game");
@@ -608,6 +635,17 @@ public final class ControllerMapActivity extends Activity implements InputManage
         advance();
     }
 
+    void setMapOn(boolean on) {
+        mapOn = on;
+        Ui.setSelected(this, onPill, on);
+        Ui.setSelected(this, offPill, !on);
+        save();
+        updateHeld();
+    }
+
+    /** What the player's mapping says for an input, or null (also null while the mapping is switched off). */
+    String customAction(String token) { return mapOn ? map.actionOf(token) : null; }
+
     void save() {
         File dir = Launcher.dataDir();
         if (!dir.isDirectory()) dir.mkdirs();
@@ -616,6 +654,8 @@ public final class ControllerMapActivity extends Activity implements InputManage
         String text = map.format();
         if (text.isEmpty()) config.remove(PadMapping.KEY);
         else config.put(PadMapping.KEY, text);
+        if (mapOn) config.remove("NX_PAD_MAP_ON");
+        else config.put("NX_PAD_MAP_ON", "0");
         if (!Launcher.writeConfig(f, config))
             Toast.makeText(this, t("No se pudo escribir config.txt", "Could not write config.txt"), Toast.LENGTH_LONG).show();
     }

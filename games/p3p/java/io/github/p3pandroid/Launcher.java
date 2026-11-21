@@ -84,6 +84,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         final String key, es, en;
         final String[] values, labelsEs, labelsEn;
         int pick;
+        final int def;  // the choice the launcher starts with (Reset settings goes back to it)
         final List<TextView> pills = new ArrayList<>();  // the choices on screen (build())
 
         Option(String key, String es, String en, String[] values, String[] labelsEs, String[] labelsEn, int pick) {
@@ -94,6 +95,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             this.labelsEs = labelsEs;
             this.labelsEn = labelsEn;
             this.pick = pick;
+            this.def = pick;
         }
     }
 
@@ -485,6 +487,13 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                     }
                 });
 
+        addRow(tools, t("Restaurar ajustes", "Reset settings"), t("Restaurar", "Reset"), new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                askResetSettings();
+            }
+        });
+
         // Saves: a dedicated, launcher-styled backup panel. Import/export behavior is unchanged.
         LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
 
@@ -722,7 +731,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             text = Lang.f("Mando: %s", "Controller: %s", b.toString());
         }
         String custom = config.get(PadMapping.KEY);
-        if (custom != null && !custom.isEmpty()) text += "\n" + t("Mapeo personalizado activo", "Custom mapping on");
+        if (custom != null && !custom.isEmpty() && !"0".equals(config.get("NX_PAD_MAP_ON"))) text += "\n" + t("Mapeo personalizado activo", "Custom mapping on");
         padStatus.setText(text);
     }
 
@@ -736,6 +745,30 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
     void updateButtons(View unused) {
         for (Option o : options)
             for (int k = 0; k < o.pills.size(); k++) Ui.setSelected(this, o.pills.get(k), k == o.pick);
+    }
+
+    // Back to the launcher's own choices for every option on screen. Saves, the controller mapping and where the buttons
+    // are stay as they were.
+    void askResetSettings() {
+        new AlertDialog.Builder(this)
+                .setTitle(t("Restaurar ajustes", "Reset settings"))
+                .setMessage(t("Vuelven a su valor inicial la resolución, el rendimiento, el audio y las opciones de botones. "
+                                + "Tus partidas, el mapeo del mando y la posición de los botones se conservan.",
+                        "Restores resolution, performance, audio and button options to their defaults. "
+                                + "Your saves, controller mapping and button positions are kept."))
+                .setPositiveButton(t("Restaurar", "Reset"), new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface d, int which) {
+                        for (Option o : options) o.pick = o.def;
+                        updateButtons(null);
+                        for (Option o : options)
+                            if ("NX_TOUCH_STYLE".equals(o.key) && styleHintView != null)
+                                styleHintView.setText(styleHintText(o.pick));
+                        save();
+                    }
+                })
+                .setNegativeButton(t("Cancelar", "Cancel"), null)
+                .show();
     }
 
     void tell(String title, String message) {
