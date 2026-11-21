@@ -41,6 +41,7 @@
 #include <nx/runtime.h>
 
 #include "kernel.h"
+#include "pad_map.h"
 #include "platform.h"
 #include "platform_android.h"
 #include "touch_layout.h"
@@ -56,7 +57,8 @@ namespace nx::plat {
 
 namespace {
 std::mutex g_in;
-PadState g_pad_buttons;  // controller state
+PadState g_pad_buttons;  // controller state (buttons: from keys)
+uint64_t g_axis_btn = 0;   // buttons held through axes (hat, triggers, mapped axes), kept apart so a key never clears them
 enum Stick : uint8_t { kNoStick, kLeftStick, kRightStick };
 struct Touch {
     int32_t id;
@@ -79,19 +81,65 @@ void release_touch(const Touch& t, uint64_t now) {
 }
 float g_w = 1, g_h = 1;
 bool g_gamepad = false;  // the last input came from a controller: the drawn touch controls hide
+bool g_generic_pad = false;  // a BUTTON_1..12 key came in: a generic (PS2-style) pad is in use
 uint64_t g_last_touch_ns = 0;  // the drawn controls dim after kTouchIdleNs without a touch
 constexpr uint64_t kTouchIdleNs = 8'000'000'000;
 
+// NX_TOUCH_STYLE (launcher: Button layout style): "switch" (default), "xbox" or "ps2". It decides what the four face
+// buttons of a controller (and the drawn touch buttons) do, by position: Switch puts A (confirm) on the right and B
+// (back) at the bottom; Xbox and PlayStation 2 put confirm at the bottom (A / Cross) and back on the right (B / Circle).
+enum class Style { kSwitch, kXbox, kPs2 };
+Style pad_style() {
+    static const Style s = [] {
+        const char* e = std::getenv("NX_TOUCH_STYLE");
+        if (e && std::strcmp(e, "ps2") == 0) return Style::kPs2;
+        if (e && std::strcmp(e, "xbox") == 0) return Style::kXbox;
+        return Style::kSwitch;
+    }();
+    return s;
+}
+
+// The player's own mapping (NX_PAD_MAP, see pad_map.h), read once. It comes first: a key it names is never looked up
+// in the built-in tables below.
+const PadMap& pad_map() {
+    static const PadMap m = [] {
+        PadMap p = parse_pad_map(std::getenv("NX_PAD_MAP"));
+        if (!p.empty()) {
+            char line[160];
+            std::snprintf(line, sizeof line, "pad: custom mapping: %zu keys, %zu axis buttons, sticks %d%d%d%d", p.keys.size(),
+                          p.axes.size(), p.stick[0].set, p.stick[1].set, p.stick[2].set, p.stick[3].set);
+            log_line(line);
+        }
+        return p;
+    }();
+    return m;
+}
+
+// True when the player mapped one of the axes `lo`..`hi` to a button (then the built-in use of those axes stands aside).
+bool axis_remapped(int32_t lo, int32_t hi) {
+    for (const auto& a : pad_map().axes)
+        if (a.axis >= lo && a.axis <= hi) return true;
+    return false;
+}
+
+// True when the player mapped a d-pad key (Android also makes these from the hat): the hat then no longer presses the
+// built-in directions, or one press would act twice.
+bool dpad_key_remapped() {
+    for (const auto& k : pad_map().keys)
+        if (k.code >= AKEYCODE_DPAD_UP && k.code <= AKEYCODE_DPAD_RIGHT) return true;
+    return false;
+}
+
 uint64_t key_to_button(int32_t k) {
-    const char* style = std::getenv("NX_TOUCH_STYLE");
-    const bool xbox = style && std::strcmp(style, "xbox") == 0;
+    const Style style = pad_style();
+    const bool south_confirm = style != Style::kSwitch;
     switch (k) {
         // Android's standardized face keys describe physical positions. The selected profile
         // decides which logical face-button action those positions produce.
-        case AKEYCODE_BUTTON_A: return xbox ? kA : kB;  // bottom
-        case AKEYCODE_BUTTON_B: return xbox ? kB : kA;  // right
-        case AKEYCODE_BUTTON_X: return xbox ? kX : kY;  // left
-        case AKEYCODE_BUTTON_Y: return xbox ? kY : kX;  // top
+        case AKEYCODE_BUTTON_A: return south_confirm ? kA : kB;  // bottom (Cross)
+        case AKEYCODE_BUTTON_B: return south_confirm ? kB : kA;  // right (Circle)
+        case AKEYCODE_BUTTON_X: return south_confirm ? kX : kY;  // left (Square)
+        case AKEYCODE_BUTTON_Y: return south_confirm ? kY : kX;  // top (Triangle)
         case AKEYCODE_BUTTON_L1: return kL;
         case AKEYCODE_BUTTON_R1: return kR;
         case AKEYCODE_BUTTON_L2: return kZL;
@@ -107,6 +155,25 @@ uint64_t key_to_button(int32_t k) {
         // A keyboard: Enter / Space confirm (A), Escape goes back (B). (Some tablets keep BUTTON_B for their stylus.)
         case AKEYCODE_ENTER: case AKEYCODE_NUMPAD_ENTER: case AKEYCODE_SPACE: case AKEYCODE_DPAD_CENTER: return kA;
         case AKEYCODE_ESCAPE: return kB;
+        default: break;
+    }
+    // PlayStation 2 pads on a USB adapter (and other generic HID pads) have no standard Android layout: their buttons
+    // arrive as BUTTON_1..BUTTON_12 in the order the adapter lists them. The common "PC TWIN SHOCK" order is used:
+    // Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select, Start, L3, R3. They work with every profile (the face
+    // buttons follow the chosen profile by position, like the standard ones); before, these keys were ignored.
+    switch (k) {
+        case AKEYCODE_BUTTON_1: g_generic_pad = true; return south_confirm ? kY : kX;  // Triangle (top)
+        case AKEYCODE_BUTTON_2: g_generic_pad = true; return south_confirm ? kB : kA;  // Circle (right)
+        case AKEYCODE_BUTTON_3: g_generic_pad = true; return south_confirm ? kA : kB;  // Cross (bottom)
+        case AKEYCODE_BUTTON_4: g_generic_pad = true; return south_confirm ? kX : kY;  // Square (left)
+        case AKEYCODE_BUTTON_5: g_generic_pad = true; return kZL;       // L2
+        case AKEYCODE_BUTTON_6: g_generic_pad = true; return kZR;       // R2
+        case AKEYCODE_BUTTON_7: g_generic_pad = true; return kL;        // L1
+        case AKEYCODE_BUTTON_8: g_generic_pad = true; return kR;        // R1
+        case AKEYCODE_BUTTON_9: g_generic_pad = true; return kMinus;    // Select
+        case AKEYCODE_BUTTON_10: g_generic_pad = true; return kPlus;    // Start
+        case AKEYCODE_BUTTON_11: g_generic_pad = true; return kStickL;  // L3
+        case AKEYCODE_BUTTON_12: g_generic_pad = true; return kStickR;  // R3
         default: return 0;
     }
 }
@@ -126,8 +193,26 @@ int32_t on_input(android_app*, AInputEvent* e) {
     int32_t type = AInputEvent_getType(e);
     int32_t src = AInputEvent_getSource(e);
     if (type == AINPUT_EVENT_TYPE_KEY) {
-        uint64_t b = key_to_button(AKeyEvent_getKeyCode(e));
-        if (!b) return 0;
+        const int32_t code = AKeyEvent_getKeyCode(e);
+        uint64_t b = pad_map().key(code);
+        if (!b) {
+            // The d-pad keys Android makes from the hat stand aside when the player mapped the hat to other buttons.
+            if (code >= AKEYCODE_DPAD_UP && code <= AKEYCODE_DPAD_RIGHT && axis_remapped(AMOTION_EVENT_AXIS_HAT_X, AMOTION_EVENT_AXIS_HAT_Y))
+                return 1;
+            b = key_to_button(code);
+        }
+        if (!b) {
+            // A controller key nothing uses: said once in the log, so a pad that does not work can be mapped from it.
+            static std::vector<int32_t> told;
+            if ((src & AINPUT_SOURCE_GAMEPAD) == AINPUT_SOURCE_GAMEPAD && told.size() < 32 &&
+                std::find(told.begin(), told.end(), code) == told.end()) {
+                told.push_back(code);
+                char line[96];
+                std::snprintf(line, sizeof line, "pad: unmapped controller key %d", int(code));
+                log_line(line);
+            }
+            return 0;
+        }
         g_gamepad = true;
         if (AKeyEvent_getAction(e) == AKEY_EVENT_ACTION_DOWN)
             g_pad_buttons.buttons |= b;
@@ -138,27 +223,50 @@ int32_t on_input(android_app*, AInputEvent* e) {
     if (type != AINPUT_EVENT_TYPE_MOTION) return 0;
     if ((src & AINPUT_SOURCE_JOYSTICK) == AINPUT_SOURCE_JOYSTICK) {
         g_gamepad = true;
+        const PadMap& pm = pad_map();
+        auto raw = [&](int32_t a) { return AMotionEvent_getAxisValue(e, a, 0); };
         auto axis = [&](int32_t a) {
-            float v = AMotionEvent_getAxisValue(e, a, 0);
+            float v = raw(a);
             return std::fabs(v) < 0.15f ? 0 : int32_t(std::clamp(v, -1.f, 1.f) * kStickMax);
         };
         g_pad_buttons.lx = axis(AMOTION_EVENT_AXIS_X);
         g_pad_buttons.ly = -axis(AMOTION_EVENT_AXIS_Y);
         g_pad_buttons.rx = axis(AMOTION_EVENT_AXIS_Z);
         g_pad_buttons.ry = -axis(AMOTION_EVENT_AXIS_RZ);
-        float hx = AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_HAT_X, 0);
-        float hy = AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_HAT_Y, 0);
-        g_pad_buttons.buttons &= ~(kLeft | kRight | kUp | kDown | kZL | kZR);
-        if (hx < -0.5f) g_pad_buttons.buttons |= kLeft;
-        if (hx > 0.5f) g_pad_buttons.buttons |= kRight;
-        if (hy < -0.5f) g_pad_buttons.buttons |= kUp;
-        if (hy > 0.5f) g_pad_buttons.buttons |= kDown;
-        if (AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_LTRIGGER, 0) > 0.4f ||
-            AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_BRAKE, 0) > 0.4f)
-            g_pad_buttons.buttons |= kZL;
-        if (AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_RTRIGGER, 0) > 0.4f ||
-            AMotionEvent_getAxisValue(e, AMOTION_EVENT_AXIS_GAS, 0) > 0.4f)
-            g_pad_buttons.buttons |= kZR;
+        // PS2 pads on a USB adapter (the PS2 profile, or once a generic pad pressed a button) often report the right
+        // stick as RX / RY instead of Z / RZ.
+        if ((pad_style() == Style::kPs2 || g_generic_pad) && !g_pad_buttons.rx && !g_pad_buttons.ry) {
+            g_pad_buttons.rx = axis(AMOTION_EVENT_AXIS_RX);
+            g_pad_buttons.ry = -axis(AMOTION_EVENT_AXIS_RY);
+        }
+        // The player's own sticks (Y: down is positive in Android, up in the game).
+        auto custom = [&](int which, int32_t& out, bool down_positive) {
+            const PadMap::StickAxis& st = pm.stick[which];
+            if (st.set) out = int32_t(pad_stick_value(raw(st.axis), down_positive, st.invert) * kStickMax);
+        };
+        custom(PadMap::kLX, g_pad_buttons.lx, false);
+        custom(PadMap::kLY, g_pad_buttons.ly, true);
+        custom(PadMap::kRX, g_pad_buttons.rx, false);
+        custom(PadMap::kRY, g_pad_buttons.ry, true);
+        // Buttons held through axes: the hat, the analog triggers, and the player's mapped axes.
+        uint64_t held = 0;
+        if (!axis_remapped(AMOTION_EVENT_AXIS_HAT_X, AMOTION_EVENT_AXIS_HAT_Y) && !dpad_key_remapped()) {
+            float hx = raw(AMOTION_EVENT_AXIS_HAT_X), hy = raw(AMOTION_EVENT_AXIS_HAT_Y);
+            if (hx < -0.5f) held |= kLeft;
+            if (hx > 0.5f) held |= kRight;
+            if (hy < -0.5f) held |= kUp;
+            if (hy > 0.5f) held |= kDown;
+        }
+        if (!axis_remapped(AMOTION_EVENT_AXIS_LTRIGGER, AMOTION_EVENT_AXIS_RTRIGGER) &&
+            !axis_remapped(AMOTION_EVENT_AXIS_GAS, AMOTION_EVENT_AXIS_BRAKE)) {
+            if (raw(AMOTION_EVENT_AXIS_LTRIGGER) > 0.4f || raw(AMOTION_EVENT_AXIS_BRAKE) > 0.4f) held |= kZL;
+            if (raw(AMOTION_EVENT_AXIS_RTRIGGER) > 0.4f || raw(AMOTION_EVENT_AXIS_GAS) > 0.4f) held |= kZR;
+        }
+        for (const auto& a : pm.axes) {
+            const float v = raw(a.axis);
+            if (a.sign > 0 ? v > 0.5f : v < -0.5f) held |= a.button;
+        }
+        g_axis_btn = held;
         return 1;
     }
     if ((src & AINPUT_SOURCE_TOUCHSCREEN) != AINPUT_SOURCE_TOUCHSCREEN) return 0;
@@ -218,7 +326,7 @@ bool headless() {  // NX_HEADLESS (platform.h)
 
 void read_pad(PadState& p) {
     std::lock_guard lk(g_in);
-    p.buttons |= g_pad_buttons.buttons;
+    p.buttons |= g_pad_buttons.buttons | g_axis_btn;
     if (g_pad_buttons.lx || g_pad_buttons.ly) {
         p.lx = g_pad_buttons.lx;
         p.ly = g_pad_buttons.ly;
