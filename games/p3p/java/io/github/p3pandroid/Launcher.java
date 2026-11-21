@@ -15,6 +15,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Icon;
+import android.hardware.input.InputManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -63,6 +64,9 @@ import java.util.Map;
  *               get the normal one, and the runtime reopens its stream when the output changes
  *   on-screen controls on (default) or off (NX_TOUCH_SHOW), their size (NX_TOUCH_SIZE) and opacity (NX_TOUCH_OPACITY),
  *               and where they are (NX_TOUCH_LAYOUT, written by ControlsEditor)
+ *   controller   the button layout style (NX_TOUCH_STYLE: switch, xbox, ps2: which face button confirms, for controllers and
+ *               the touch buttons), the controllers Android sees, and the mapping screen (ControllerMapActivity, which
+ *               writes NX_PAD_MAP: the player's own buttons and sticks)
  * and imports or exports the saves (user/save, SaveFiles.java): a ZIP or a folder in, a ZIP in Download out.
  * The game: the player picks their own NSP or XCI (Persona 3 Portable 1.0.0) and prod.keys here; ImportActivity checks
  * them and translates the game's shaders once, and every start reads the game from that file as it is (the runtime's
@@ -73,7 +77,7 @@ import java.util.Map;
  * Other lines of config.txt are kept as they were. The launcher itself speaks the device's language (Lang.java:
  * Spanish, English, French, German, Italian, Portuguese, Japanese, Korean, Chinese; English otherwise).
  */
-public class Launcher extends Activity {
+public class Launcher extends Activity implements InputManager.InputDeviceListener {
     static final String DATA = "Persona 3 Portable";
 
     static final class Option {
@@ -96,6 +100,8 @@ public class Launcher extends Activity {
     final List<Option> options = new ArrayList<>();
     final Map<String, String> config = new LinkedHashMap<>();
     TextView status;
+    TextView padStatus;      // the controllers Android sees (Controls → Controller)
+    TextView styleHintView;  // the line under "Button layout style"
     Button play;
     static final int PICK_ZIP = 1, PICK_FOLDER = 2, PICK_GAME = 3, PICK_KEYS = 4, PICK_ICON = 5, PREPARE = 6;
 
@@ -307,14 +313,15 @@ public class Launcher extends Activity {
                 new String[] {"Baja latencia", "Normal (más estable)"}, new String[] {"Low latency", "Normal (more stable)"}, 0));
         options.add(new Option("NX_TOUCH_SHOW", "Controles táctiles", "On-screen controls", new String[] {"1", "0"},
                 new String[] {"Activados", "Desactivados"}, new String[] {"On", "Off"}, 0));
-        options.add(new Option("NX_TOUCH_STYLE", "Estilo de botones", "Button layout style", new String[] {"switch", "xbox"},
-                new String[] {"Nintendo Switch", "Xbox"}, new String[] {"Nintendo Switch", "Xbox"}, 0));
         options.add(new Option("NX_TOUCH_SIZE", "Tamaño de los botones", "Button size",
                 new String[] {"80", "100", "125"}, new String[] {"Pequeño", "Normal", "Grande"},
                 new String[] {"Small", "Normal", "Large"}, 1));
         options.add(new Option("NX_TOUCH_OPACITY", "Opacidad de los botones", "Button opacity",
                 new String[] {"50", "85", "100"}, new String[] {"Baja", "Normal", "Alta"},
                 new String[] {"Low", "Normal", "High"}, 1));
+        options.add(new Option("NX_TOUCH_STYLE", "Estilo de botones", "Button layout style", new String[] {"switch", "xbox", "ps2"},
+                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2"},
+                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2"}, 0));
         build();
     }
 
@@ -351,7 +358,16 @@ public class Launcher extends Activity {
     protected void onResume() {
         super.onResume();
         applyImmersiveMode();
+        InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
+        if (im != null) im.registerInputDeviceListener(this, null);
         refresh();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        InputManager im = (InputManager) getSystemService(Context.INPUT_SERVICE);
+        if (im != null) im.unregisterInputDeviceListener(this);
     }
 
     String versionName() {
@@ -417,10 +433,27 @@ public class Launcher extends Activity {
                 card = section(root, t(section[0], section[1]), advice == null ? null : t(advice[0], advice[1]));
             }
             card.addView(optionBlock(o));
+            // Right after the touch buttons' own options: where they are.
+            if ("NX_TOUCH_OPACITY".equals(o.key))
+                addRow(card, t("Posición de los controles", "Controls position"), t("Mover", "Move"),
+                        new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                if (!hasAccess()) {
+                                    askAccess();
+                                    return;
+                                }
+                                save();
+                                startActivity(new Intent(Launcher.this, ControlsEditor.class));
+                            }
+                        });
         }
 
-        // Still in the Controls card: where the buttons are.
-        addRow(card, t("Posición de los controles", "Controls position"), t("Mover", "Move"), new View.OnClickListener() {
+        // Still in the Controller card (the last option's): what Android sees, and the mapping screen.
+        padStatus = Ui.hint(this, "");
+        padStatus.setPadding(0, dp(4), 0, dp(4));
+        card.addView(padStatus);
+        addRow(card, t("Mapeo del mando", "Controller mapping"), t("Abrir", "Open"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -428,7 +461,7 @@ public class Launcher extends Activity {
                     return;
                 }
                 save();
-                startActivity(new Intent(Launcher.this, ControlsEditor.class));
+                startActivity(new Intent(Launcher.this, ControllerMapActivity.class));
             }
         });
 
@@ -567,6 +600,15 @@ public class Launcher extends Activity {
         updateButtons(null);
     }
 
+    // The line under "Button layout style": what the chosen profile does (0 Nintendo Switch, 1 Xbox, 2 PlayStation 2).
+    String styleHintText(int choice) {
+        if (choice == 1) return t("Usa la posición y los símbolos de Xbox.", "Use Xbox button positions and labels.");
+        if (choice == 2)
+            return t("Usa la posición de los botones del mando de PlayStation 2 (Cruz confirma, Círculo vuelve).",
+                    "Use PlayStation 2 controller button positions (Cross confirms, Circle goes back).");
+        return t("Usa la posición y los símbolos de Nintendo.", "Use Nintendo button positions and labels.");
+    }
+
     // One option: its name, and its choices side by side (the chosen one filled).
     LinearLayout optionBlock(final Option o) {
         LinearLayout block = new LinearLayout(this);
@@ -575,8 +617,8 @@ public class Launcher extends Activity {
         block.addView(Ui.label(this, t(o.es, o.en)));
         final TextView styleHint;
         if ("NX_TOUCH_STYLE".equals(o.key)) {
-            styleHint = Ui.hint(this, t("Usa o posicionamento e os símbolos Nintendo.",
-                    "Use Nintendo button positions and labels."));
+            styleHint = Ui.hint(this, styleHintText(o.pick));
+            styleHintView = styleHint;
             block.addView(styleHint);
         } else {
             styleHint = null;
@@ -592,9 +634,7 @@ public class Launcher extends Activity {
                 public void onClick(View v) {
                     o.pick = choice;
                     if (styleHint != null) {
-                        styleHint.setText(choice == 0
-                                ? t("Usa o posicionamento e os símbolos Nintendo.", "Use Nintendo button positions and labels.")
-                                : t("Usa o posicionamento e os símbolos Xbox.", "Use Xbox button positions and labels."));
+                        styleHint.setText(styleHintText(choice));
                     }
                     updateButtons(null);
                     save();
@@ -627,6 +667,9 @@ public class Launcher extends Activity {
                 if (o.values[k].equals(v)) o.pick = k;
         }
         updateButtons(getWindow().getDecorView());
+        for (Option o : options)
+            if ("NX_TOUCH_STYLE".equals(o.key) && styleHintView != null) styleHintView.setText(styleHintText(o.pick));
+        updatePadStatus();
         if (!hasAccess()) {
             status.setText(t("Hace falta el permiso de acceso a todos los archivos para leer los datos del juego.",
                     "All-files access is needed to read the game data."));
@@ -662,6 +705,32 @@ public class Launcher extends Activity {
             play.setText(t("Jugar", "Play"));
         }
     }
+
+    // The controllers Android sees now, and whether the player's own mapping is on.
+    void updatePadStatus() {
+        if (padStatus == null) return;
+        List<String> names = ControllerMapActivity.padNames(false);
+        String text;
+        if (names.isEmpty()) {
+            text = t("Ningún mando conectado", "No controller connected");
+        } else {
+            StringBuilder b = new StringBuilder();
+            for (String n : names) {
+                if (b.length() > 0) b.append(", ");
+                b.append(n);
+            }
+            text = Lang.f("Mando: %s", "Controller: %s", b.toString());
+        }
+        String custom = config.get(PadMapping.KEY);
+        if (custom != null && !custom.isEmpty()) text += "\n" + t("Mapeo personalizado activo", "Custom mapping on");
+        padStatus.setText(text);
+    }
+
+    @Override public void onInputDeviceAdded(int id) { updatePadStatus(); }
+
+    @Override public void onInputDeviceRemoved(int id) { updatePadStatus(); }
+
+    @Override public void onInputDeviceChanged(int id) { updatePadStatus(); }
 
     // Marks the chosen choice of every option (the View argument is a leftover of the old cycling buttons).
     void updateButtons(View unused) {
@@ -915,6 +984,7 @@ public class Launcher extends Activity {
         if ("NX_FPS_CAP".equals(key)) return new String[] {"Rendimiento", "Performance"};
         if ("NX_AUDIO_MODE".equals(key)) return new String[] {"Audio", "Audio"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
+        if ("NX_TOUCH_STYLE".equals(key)) return new String[] {"Mando", "Controller"};
         return null;
     }
 
@@ -926,6 +996,9 @@ public class Launcher extends Activity {
         if ("NX_FPS_CAP".equals(key))
             return new String[] {"En móviles modestos, 30 fps suele ir más fluido que 60. \"Priorizar los rápidos\" ayuda cuando la GPU no está al límite.",
                     "On modest phones 30 fps is usually smoother than 60. \"Prefer the fast ones\" helps when the GPU is not at its limit."};
+        if ("NX_TOUCH_STYLE".equals(key))
+            return new String[] {"Conecta un mando USB o Bluetooth. Si algún botón no hace lo que debe, asígnalo tú mismo.",
+                    "Plug in a USB or Bluetooth controller. If some buttons do not do what they should, map them yourself."};
         if ("NX_AUDIO_MODE".equals(key))
             return new String[] {"Si el sonido falla con auriculares, prueba \"Normal\".",
                     "If the sound breaks up with headphones, try \"Normal\"."};

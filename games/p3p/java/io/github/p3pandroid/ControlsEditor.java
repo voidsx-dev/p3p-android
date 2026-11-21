@@ -55,7 +55,9 @@ public class ControlsEditor extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Map<String, String> config = Launcher.readConfig(configFile());
-        xboxStyle = "xbox".equalsIgnoreCase(config.get("NX_TOUCH_STYLE"));
+        // Xbox and PlayStation 2 share the face-button positions (the drawn labels stay A / B / X / Y).
+        xboxStyle = "xbox".equalsIgnoreCase(config.get("NX_TOUCH_STYLE"))
+                || "ps2".equalsIgnoreCase(config.get("NX_TOUCH_STYLE"));
         try {
             sizeScale = Math.max(50, Math.min(160, Integer.parseInt(config.get("NX_TOUCH_SIZE")))) / 100f;
         } catch (Exception ignored) {
