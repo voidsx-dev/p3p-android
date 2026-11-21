@@ -103,6 +103,13 @@ Style pad_style() {
 // in the built-in tables below.
 const PadMap& pad_map() {
     static const PadMap m = [] {
+        // The launcher's switch (Controller mapping → Use my mapping): off keeps the mapping saved but unused, for playing
+        // with another controller.
+        const char* on = std::getenv("NX_PAD_MAP_ON");
+        if (on && on[0] == '0') {
+            log_line("pad: custom mapping is off");
+            return PadMap();
+        }
         PadMap p = parse_pad_map(std::getenv("NX_PAD_MAP"));
         if (!p.empty()) {
             char line[160];
