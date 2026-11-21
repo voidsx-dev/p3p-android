@@ -78,6 +78,20 @@ No overlay is drawn yet: the left half of the screen is a virtual stick (drag fr
 right half has four zones: up-left Y, up-right X, down-left B, down-right A; along the top: L, +, ZR, R.
 A Bluetooth controller is the better way to play for now.
 
+## Controllers
+
+Standard controllers (Xbox, PlayStation, Switch pads, most Bluetooth pads) work as they are. The launcher's **Button layout style** (Nintendo Switch, Xbox, PlayStation 2) says which face button confirms. A PS2 pad on a USB/OTG adapter arrives as a generic pad (BUTTON_1..12) and works with every profile, in the common "PC TWIN SHOCK" order.
+
+When a pad does something else, **Controller → Controller mapping** lets you map it yourself. Tap Set (or Guided setup), press the button on the controller; sticks are found the same way. It is saved as `NX_PAD_MAP` in config.txt, a list separated by `;`:
+
+| Item | Meaning | Example |
+|---|---|---|
+| `k<keycode>:<ACTION>` | an Android key code acts as a button | `k190:A` |
+| `a<axis><+/->:<ACTION>` | an axis pushed past half, that way, acts as a button | `a15-:LEFT` |
+| `s<LX/LY/RX/RY>:<axis>[i]` | the axis that moves a stick (`i` turns it round) | `sRX:11` |
+
+ACTION is one of A B X Y L R ZL ZR PLUS MINUS L3 R3 UP DOWN LEFT RIGHT (the game's own Nintendo names: A confirms, B goes back). What is not listed keeps its built-in meaning. nx.log tells once about each controller key nothing uses (`pad: unmapped controller key N`), which is the number to map.
+
 ## Known limits
 
 - The address space: the guest ranges sit at 0x40_0000_0000-0x6F_0000_0000, below the 39-bit top where
