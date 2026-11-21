@@ -33,7 +33,8 @@
             android:name=".Launcher"
             android:exported="true"
             android:theme="@style/Fullscreen"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -45,6 +46,14 @@
             android:exported="false"
             android:theme="@style/Fullscreen"
             android:screenOrientation="sensorLandscape" />
+        <!-- Controller mapping (NX_PAD_MAP): the player's own buttons and sticks. The keyboard and navigation changes are
+             handled here because plugging a pad in raises them, and the screen must not restart in the middle of a capture. -->
+        <activity
+            android:name=".ControllerMapActivity"
+            android:exported="false"
+            android:theme="@style/Fullscreen"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation" />
         <!-- Read-only device, memory, GPU and game-data diagnostics. -->
         <activity
             android:name=".DiagnosticsActivity"
