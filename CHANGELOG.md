@@ -2,6 +2,37 @@ Changelog
 
 All notable changes to P3P Android are documented here.
 
+[0.5.0] - Released
+
+Added
+
+- Controller mapping screen (Controller → Controller mapping). For pads Android has no standard layout for, such as a PS2 pad on a USB/OTG adapter, and for anyone who wants other buttons: tap Set (or Guided setup), press the button you want on your controller, and it is kept. It covers all 16 buttons (A/B/X/Y, L/R, ZL/ZR, +/−, both stick clicks and the d-pad) and both sticks (it finds the axis and which way is up, for pads whose sticks do not respond or move backwards). Axes can be mapped to buttons too, for a d-pad that comes as an axis or for analog triggers. Whatever is not mapped keeps working as before; every button has its own reset, and there is Restore defaults.
+- "Use my mapping" switch on that screen: off keeps the mapping saved but unused, so another controller can be played without losing it.
+- Live test on the mapping screen: it shows what the controller sends and what the game does with it (custom, default or unused), lights up the row of the button held down, and lists the controllers Android sees with their vendor:product ids, for bug reports.
+- PlayStation 2 control profile (Button layout style → PlayStation 2): Cross confirms, Circle goes back. PS2 pads on a USB/OTG adapter work with every profile with no setting needed (the common "PC TWIN SHOCK" button order: Triangle, Circle, Cross, Square, L2, R2, L1, R1, Select, Start, L3, R3; the right stick on Z/RZ or RX/RY). The same option drives the touch buttons' positions; their labels stay A / B / X / Y.
+- The controller's Home (Guide) button opens and closes the in-game Quick Menu, so it can be reached without touching the screen.
+- FPS counter switch in the Quick Menu, applied while playing (it no longer needs a restart).
+- Reset settings (Tools): resolution, performance, audio and button options go back to their defaults. Saves, the controller mapping and the button positions are kept.
+- The launcher's Controls card is split in two: Controls (touch buttons: on/off, size, opacity, position) and Controller (button layout style, the controllers connected now and whether a custom mapping is on, and the mapping screen).
+- nx.log says once which controller keys nothing uses (`pad: unmapped controller key N`), and when a custom mapping is loaded or switched off.
+- Everything new is translated in all 10 launcher languages.
+
+Fixed
+
+- Buttons held on a controller are no longer released when the d-pad or a trigger moves (keys and axes are tracked apart).
+- The line under Button layout style shows the saved choice when the launcher opens, not always Nintendo.
+- Plugging a controller in no longer restarts the launcher.
+
+Preserved
+
+- Existing FSR, 720p/1080p, FPS cap, CPU affinity, audio, saves, Mod Manager and Stretch Screen behavior. Controllers Android already knows (Xbox, PlayStation, Switch and most Bluetooth pads) keep their button positions.
+
+Notes
+
+- The controller mapping is the `NX_PAD_MAP` line of config.txt (format in runtime/src/pad_map.h and docs/ANDROID.md).
+- Controller support is new and could only be tested on a few pads. PS2 adapters list their buttons in different orders, which is what the mapping screen is for. If a controller does not work, open an issue with your device, the controller's name and ids (shown on the mapping screen) and your nx.log.
+
+
 [0.4.0] - Released
 
 Added

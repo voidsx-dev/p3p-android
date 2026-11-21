@@ -46,7 +46,8 @@ Get the latest APK from the [GitHub Releases](https://github.com/voidsx-dev/p3p-
 - **Performance options** — 30 or 60 fps, a CPU cores setting, and an FPS counter.
 - **Audio** — stereo downmix with a soft limiter against clipping, a selectable audio output mode, and automatic recovery when headphones are connected or disconnected.
 - **Touch controls** — on-screen buttons with adjustable size, opacity, and a layout editor.
-- **Controller support** — compatible game controllers.
+- **Controller support** — Xbox, PlayStation and Switch-style pads, plus PS2 pads on a USB adapter, with Nintendo Switch, Xbox and PlayStation 2 button profiles and a mapping screen for any other controller.
+- **Quick menu** — opens with Back (or a controller's Home button) while playing: stretch, touch controls, opacity, FPS counter, resume and exit.
 - **Save management** — import and export your save files.
 - **Mod manager** — manage RomFS mods from inside the app.
 - **Device diagnostics** — a read-only report of your device, memory, GPU, and game data.
@@ -91,7 +92,22 @@ Preparation is normally needed only once, unless the game data has to be prepare
 | CPU cores | Automatic (default), Prefer the fast ones | Experimental. It may help on phones with few fast cores. |
 | FPS counter | Off (default), On | Shows the current frame rate. |
 | Audio output | Low latency (default), Normal | If the sound breaks up on some outputs, such as headphones, try Normal. |
+| Button layout style | Nintendo Switch (default), Xbox, PlayStation 2 | Which face button confirms and which goes back, for controllers and the touch buttons. Pick PlayStation 2 for PS2 pads on a USB adapter. |
+| Controller mapping | Screen, plus Use my mapping On/Off | Controller → Controller mapping: map any button or stick of a controller Android has no layout for. Turn Use my mapping off to play with another controller without losing it. |
 | On-screen controls | Show or hide, size, opacity, layout editor | Adjust the touch buttons to your hands. |
+| Reset settings | Button (Tools) | Puts resolution, performance, audio and button options back to their defaults. Saves, the controller mapping and button positions are kept. |
+
+---
+
+## Controllers
+
+Xbox, PlayStation and Switch pads, and most Bluetooth pads, work as they are: plug or pair them and play. Which face button confirms is the **Button layout style** option.
+
+A **PS2 pad on a USB (OTG) adapter** is supported too, with any profile. If some buttons do the wrong thing, open **Controller → Controller mapping**, tap **Guided setup** and press each button when asked (sticks too, if they need it). It is saved by itself. The same screen has a live test that shows what each button sends, and **Use my mapping** to switch it off when you play with another controller.
+
+While playing, the controller's **Home (Guide)** button opens the Quick menu.
+
+Controller support is new. If a controller does not work, report it with its name and ids (the mapping screen lists them) and your `nx.log`.
 
 ---
 
