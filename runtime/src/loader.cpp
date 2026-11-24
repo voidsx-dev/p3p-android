@@ -135,6 +135,16 @@ uint64_t hook_function(uint64_t addr, HleFn fn) {
 #endif
 }
 
+bool patch_guest_word(uint64_t addr, uint32_t word) {
+#if NX_NCE
+    return nce::patch_word(addr, word);
+#else
+    (void)addr;
+    (void)word;
+    return false;  // recompiled builds hold the game's code as generated functions: there is no instruction to patch
+#endif
+}
+
 // ---- dispatch -------------------------------------------------------------------------------------------------
 
 const LoadedModule* module_at(uint64_t addr) {

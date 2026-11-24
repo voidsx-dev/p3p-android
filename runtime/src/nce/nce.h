@@ -40,6 +40,11 @@ void enter(CPU& c, uint64_t target);
 // 0 if the function's first instruction cannot be moved.
 uint64_t hook(uint64_t addr, HleFn fn);
 
+// Writes one instruction into a module's code (a game patch, like a plugin's): false when `addr` is not 4-byte aligned
+// inside a module's text. Other threads may be running that code: it is written read-write-execute where the system
+// allows, then the instruction cache is cleared.
+bool patch_word(uint64_t addr, uint32_t word);
+
 // The Switch's 19.2 MHz system tick, from the host's virtual counter (what the patched mrs CNTPCT_EL0 returns).
 uint64_t tick();
 

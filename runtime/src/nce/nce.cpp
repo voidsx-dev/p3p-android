@@ -670,6 +670,13 @@ uint64_t hook(uint64_t addr, HleFn fn) {
     return original;
 }
 
+bool patch_word(uint64_t addr, uint32_t word) {
+    const LoadedModule* m = module_at(addr);
+    if (!m || (addr & 3) || addr - (m->base + m->info->text) >= m->info->text_size) return false;
+    write_code(addr, &word, 4);
+    return true;
+}
+
 uint64_t tick() { return scaled(cntvct()) - g_tick_off; }
 
 bool guest_fault_context(void* ucontext, CPU& c, uint64_t& pc) {

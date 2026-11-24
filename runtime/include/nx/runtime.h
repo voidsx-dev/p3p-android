@@ -116,6 +116,10 @@ HleFn hle_lookup(const char* name);
 // call(): indirect ones); native execution patches its first instruction, so every call goes to fn (nce.cpp).
 uint64_t hook_function(uint64_t addr, HleFn fn);
 
+// Writes one instruction into the guest's code, as a plugin would patch it. Only native execution (NX_NCE) runs the
+// game's own code and can: false elsewhere, and when `addr` is not 4-byte aligned inside a module's text.
+bool patch_guest_word(uint64_t addr, uint32_t word);
+
 // Call guest code at `addr` on context c (args already in x0..).
 inline void guest_call(CPU& c, uint64_t addr) { call(c, addr); }
 
