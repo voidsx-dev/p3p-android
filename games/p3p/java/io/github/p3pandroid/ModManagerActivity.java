@@ -228,7 +228,7 @@ public final class ModManagerActivity extends Activity {
                 String suggested = cleanName(filename.substring(0, filename.length() - 4));
                 android.widget.EditText destination = new android.widget.EditText(this);
                 destination.setSingleLine(true);
-                destination.setText("data_EN/" + filename);
+                destination.setText((isModCpk(filename) ? "data/" : "data_EN/") + filename);
                 destination.setHint("ex.: caminho/do/arquivo.cpk");
                 destination.setSelectAllOnFocus(true);
                 LinearLayout wrap = new LinearLayout(this);
@@ -256,6 +256,12 @@ public final class ModManagerActivity extends Activity {
         } catch (Exception e) {
             error("Não foi possível importar", e);
         }
+    }
+
+    // The three extra CPKs the game binds next to its own when a mod has them (the "modCPK" plugin of the Switch).
+    private static boolean isModCpk(String fileName) {
+        String n = fileName.toLowerCase(Locale.ROOT);
+        return n.equals("mod.cpk") || n.equals("mod_extra.cpk") || n.equals("mod_bgm.cpk");
     }
 
     private String displayName(Uri uri) {
@@ -371,7 +377,11 @@ public final class ModManagerActivity extends Activity {
                     // Translation packs often label the archive PTBR/ but put a language
                     // CPK directly in romfs/. The game loads that CPK from data_EN/.
                     // Preserve explicit paths (data_EN/, movie/, etc.) unchanged.
-                    if (rel.toLowerCase(Locale.ROOT).endsWith(".cpk")
+                    if (rel.indexOf('/') < 0 && isModCpk(rel)) {
+                        // mod.cpk, mod_extra.cpk and mod_bgm.cpk are not the game's language CPKs: the game binds them from
+                        // data/ (see install_mod_cpk in games/p3p/game.cpp).
+                        rel = "data/" + rel;
+                    } else if (rel.toLowerCase(Locale.ROOT).endsWith(".cpk")
                             && rel.indexOf('/') < 0) {
                         rel = "data_EN/" + rel;
                     } else if (rel.regionMatches(true, 0, "data_en/", 0, 8)) {

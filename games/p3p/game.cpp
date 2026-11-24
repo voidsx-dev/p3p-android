@@ -2,7 +2,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
+#include <system_error>
 
 #include <nx/game.h>
 #include <nx/runtime.h>
@@ -172,6 +174,122 @@ void fputs_logged(CPU& c) {
     else c.x[0] = 0;
 }
 
+// ---- mod CPKs ------------------------------------------------------------------------------------------------------
+// The Switch plugin "modCPK" (a Skyline plugin: exefs/subsdk9 + romfs/plugins/libmodCPK.nro, which the Mod Manager cannot
+// run) makes the game bind three more CPKs next to its own: app0:/data/mod.cpk, mod_extra.cpk and mod_bgm.cpk. Music mods
+// such as "P3P Music Replacer" are only a mod_bgm.cpk and depend on it. This is what the plugin does (read from its code):
+//   - it replaces the game's function at main+0x1e6280, which binds one CPK: f(x0, x1, path in x2). Before the game's own
+//     bind it calls the original once for each extra path, with the same x0 and x1; the first bound wins in CRI, so the
+//     mods' files come before the game's;
+//   - it writes the instruction 0x14000024 (b +0x90) at main+0x1c5424.
+// Here it only acts when an active mod has one of the three files (mods/<Name>/romfs/data/<file>), the call to the
+// original stays as it was for the game's own CPK, and the extra binds happen only if x2 looks like a CPK path.
+// The two addresses are those of the game's version 1.0.0, which the plugin was made for. NX_MODCPK=0 turns it off;
+// NX_MODCPK_PATCH=0 / force skips / forces the instruction patch.
+constexpr uint64_t kCpkBindOffset = 0x1e6280, kCpkPatchOffset = 0x1c5424;
+constexpr uint32_t kCpkPatchWord = 0x14000024;  // b +0x90
+const char* const kModCpkPath[3] = {"app0:/data/mod.cpk", "app0:/data/mod_extra.cpk", "app0:/data/mod_bgm.cpk"};
+const char* const kModCpkRel[3] = {"data/mod.cpk", "data/mod_extra.cpk", "data/mod_bgm.cpk"};
+uint64_t g_cpk_bind_orig = 0;
+bool g_modcpk_have[3] = {};
+
+// The branch distance in bytes of a conditional branch (b.cond, cbz/cbnz, tbz/tbnz); 0 when `w` is not one.
+int64_t cond_branch_distance(uint32_t w) {
+    auto sx = [](uint32_t v, int bits) { return int64_t(v ^ (1u << (bits - 1))) - int64_t(1u << (bits - 1)); };
+    if ((w & 0xff000010u) == 0x54000000u) return sx((w >> 5) & 0x7ffffu, 19) * 4;
+    if ((w & 0x7e000000u) == 0x34000000u) return sx((w >> 5) & 0x7ffffu, 19) * 4;
+    if ((w & 0x7e000000u) == 0x36000000u) return sx((w >> 5) & 0x3fffu, 14) * 4;
+    return 0;
+}
+
+// "app0:/....cpk" in guest memory.
+bool looks_like_cpk_path(uint64_t p) {
+    if (!readable(p, 1)) return false;
+    const char* s = reinterpret_cast<const char*>(p);
+    const size_t n = strnlen(s, 300);
+    if (n < 11 || n >= 300 || std::strncmp(s, "app0:/", 6) != 0) return false;
+    const char* e = s + n - 4;
+    return e[0] == '.' && (e[1] | 32) == 'c' && (e[2] | 32) == 'p' && (e[3] | 32) == 'k';
+}
+
+void cpk_bind_hook(CPU& c) {
+    static int seen = 0;
+    const uint64_t path = c.x[2];
+    if (!looks_like_cpk_path(path)) {  // not the function it was taken for: the game goes on as it was
+        if (seen++ < 3) log("p3p: modcpk: bind hook called with x2=%s, not a CPK path: passed through", guest_str(path).c_str());
+        call(c, g_cpk_bind_orig);
+        return;
+    }
+    uint64_t saved[8];
+    for (int k = 0; k < 8; k++) saved[k] = c.x[k];
+    const uint64_t lr = c.x[30];
+    if (seen++ < 6) log("p3p: modcpk: the game binds %s", guest_str(path).c_str());
+    for (int i = 0; i < 3; i++) {
+        if (!g_modcpk_have[i]) continue;
+        for (int k = 0; k < 8; k++) c.x[k] = saved[k];
+        c.x[2] = reinterpret_cast<uint64_t>(kModCpkPath[i]);
+        c.x[30] = lr;
+        call(c, g_cpk_bind_orig);
+    }
+    for (int k = 0; k < 8; k++) c.x[k] = saved[k];  // the game's own bind, exactly as it was called
+    c.x[30] = lr;
+    call(c, g_cpk_bind_orig);
+}
+
+// Which of the three CPKs an active mod has (the Mod Manager's folders: mods/<Name>/romfs/..., names starting with '.' or '_'
+// are off).
+bool scan_mod_cpks() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path root = fs::path(plat::data_root()) / "mods";
+    if (!fs::is_directory(root, ec)) return false;
+    bool any = false;
+    for (const auto& e : fs::directory_iterator(root, ec)) {
+        if (!e.is_directory(ec)) continue;
+        const std::string name = e.path().filename().string();
+        if (name.empty() || name[0] == '.' || name[0] == '_') continue;
+        for (int i = 0; i < 3; i++) {
+            if (fs::is_regular_file(e.path() / "romfs" / kModCpkRel[i], ec)) {
+                g_modcpk_have[i] = true;
+                any = true;
+            }
+        }
+    }
+    return any;
+}
+
+void install_mod_cpk() {
+    if (const char* off = std::getenv("NX_MODCPK"); off && off[0] == '0') return;
+    if (!scan_mod_cpks()) return;  // no mod needs it: the game is left exactly as it is
+    log("p3p: modcpk: mods have mod.cpk=%d mod_extra.cpk=%d mod_bgm.cpk=%d", g_modcpk_have[0], g_modcpk_have[1],
+        g_modcpk_have[2]);
+    const LoadedModule* m = module_at(find_symbol("nnMain"));
+    if (!m || kCpkBindOffset + 16 > m->info->text_size || kCpkPatchOffset + 4 > m->info->text_size) {
+        log("p3p: modcpk: the game's main is not the one the plugin was made for: not installed");
+        return;
+    }
+    const uint64_t text = m->base + m->info->text;
+    const uint32_t* bind = reinterpret_cast<const uint32_t*>(text + kCpkBindOffset);
+    const uint32_t at = *reinterpret_cast<const uint32_t*>(text + kCpkPatchOffset);
+    log("p3p: modcpk: main+%llx: %08x %08x %08x %08x (bind), main+%llx: %08x (patch site)", (unsigned long long)kCpkBindOffset,
+        bind[0], bind[1], bind[2], bind[3], (unsigned long long)kCpkPatchOffset, at);
+
+    const char* mode = std::getenv("NX_MODCPK_PATCH");  // 0: skip, force: always, else only when it looks right
+    const int64_t dist = cond_branch_distance(at);
+    if (at == kCpkPatchWord) {
+        log("p3p: modcpk: the patch is already there");
+    } else if (mode && mode[0] == '0') {
+        log("p3p: modcpk: instruction patch off (NX_MODCPK_PATCH=0)");
+    } else if (dist == 0x90 || (mode && std::strcmp(mode, "force") == 0)) {
+        log("p3p: modcpk: patch main+%llx: %08x -> %08x: %s", (unsigned long long)kCpkPatchOffset, at, kCpkPatchWord,
+            patch_guest_word(text + kCpkPatchOffset, kCpkPatchWord) ? "ok" : "FAILED");
+    } else {
+        log("p3p: modcpk: main+%llx holds %08x, not a branch of +0x90: patch left out", (unsigned long long)kCpkPatchOffset, at);
+    }
+    g_cpk_bind_orig = hook_function(text + kCpkBindOffset, cpk_bind_hook);
+    log("p3p: modcpk: hook of the CPK bind: %s", g_cpk_bind_orig ? "ok" : "FAILED");
+}
+
 void hid_nop(CPU& c) { c.x[0] = 0; }
 
 }  // namespace
@@ -228,6 +346,7 @@ void game::after_init() {
     if (const char* trace = std::getenv("P3P_TRACE_IPC"); trace && trace[0] == '1')
         hook("_ZN2nn2sf4hipc15SendSyncRequestENS_3svc6HandleEPvm", 0x13f290, send_hook, g_send_orig, "SendSyncRequest");
     if (g_main_base) scan_plt();
+    install_mod_cpk();
 }
 void game::renderer_start() { log("p3p: renderer_start"); }
 void game::first_frame() { log("p3p: first_frame"); }
