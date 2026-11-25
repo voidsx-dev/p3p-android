@@ -1,10 +1,12 @@
 // Persona 3 Portable (Nintendo Switch): what the shared runtime needs to know about the game.
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include <nx/game.h>
 #include <nx/runtime.h>
@@ -258,6 +260,71 @@ bool scan_mod_cpks() {
     return any;
 }
 
+// A plausible first instruction of a function: it makes room on the stack (sub sp, sp, #imm; stp / str with a pre-indexed sp).
+bool plausible_entry(uint32_t w) {
+    return (w & 0xFF8003FFu) == 0xD10003FFu     // sub sp, sp, #imm
+           || (w & 0xFFC003E0u) == 0xA98003E0u  // stp xA, xB, [sp, #imm]!
+           || (w & 0xFFE00FE0u) == 0xF8000FE0u; // str xA, [sp, #imm]!
+}
+
+struct CpkBindCall {
+    uint64_t target;
+    int count;
+};
+
+// The game's own calls that bind a CPK, found without the plugin's offsets (they belong to the game version the plugin was
+// made for): `adrp xN / add xN, xN, #off` loading an "app0:/....cpk" string into x2, then a bl a few instructions later.
+// The function those calls go to is the one the plugin hooks (its path is in x2). `str_at(addr)` gives the string at a
+// guest address, or null when it is not in the module's read-only data.
+template <class StrAt>
+std::vector<CpkBindCall> scan_cpk_binds(const uint32_t* w, size_t n, uint64_t base, StrAt str_at, std::vector<std::string>* strings) {
+    std::vector<CpkBindCall> out;
+    for (size_t i = 0; i + 2 < n; i++) {
+        const uint32_t a = w[i];
+        if ((a & 0x9F000000u) != 0x90000000u) continue;  // adrp
+        const uint32_t rd = a & 31;
+        int64_t imm = int64_t(((a >> 5) & 0x7FFFFu) << 2 | ((a >> 29) & 3u));
+        if (imm & 0x100000) imm -= 0x200000;
+        const uint64_t page = ((base + 4 * i) & ~uint64_t(0xFFF)) + uint64_t(imm * 4096);
+        for (size_t j = i + 1; j <= i + 4 && j < n; j++) {
+            const uint32_t b = w[j];
+            if ((b & 0xFF800000u) != 0x91000000u || ((b >> 5) & 31) != rd) continue;  // add xN, xrd, #imm
+            const uint64_t addr = page + (uint64_t((b >> 10) & 0xFFF) << (((b >> 22) & 1) ? 12 : 0));
+            const char* str = str_at(addr);
+            if (!str || std::strncmp(str, "app0:/", 6) != 0 || !std::strstr(str, ".cpk")) break;
+            if (strings && strings->size() < 24 && std::find(strings->begin(), strings->end(), str) == strings->end())
+                strings->push_back(str);
+            if ((b & 31) != 2) break;  // the path is the third argument
+            for (size_t k = j + 1; k <= j + 8 && k < n; k++) {
+                if ((w[k] & 0xFC000000u) != 0x94000000u) continue;  // bl
+                int64_t d = int64_t(w[k] & 0x3FFFFFFu);
+                if (d & 0x2000000) d -= 0x4000000;
+                const uint64_t target = base + 4 * k + uint64_t(d * 4);
+                bool found = false;
+                for (auto& c : out)
+                    if (c.target == target) {
+                        c.count++;
+                        found = true;
+                    }
+                if (!found) out.push_back({target, 1});
+                break;
+            }
+            break;
+        }
+    }
+    return out;
+}
+
+void log_words(const char* what, uint64_t from, int count) {
+    for (int i = 0; i < count; i += 8) {
+        char line[160];
+        int len = std::snprintf(line, sizeof line, "p3p: modcpk: %s %llx:", what, (unsigned long long)(from + 4 * i));
+        for (int k = i; k < i + 8 && k < count && len < 140; k++)
+            len += std::snprintf(line + len, sizeof line - len, " %08x", *reinterpret_cast<const uint32_t*>(from + 4 * k));
+        log("%s", line);
+    }
+}
+
 void install_mod_cpk() {
     if (const char* off = std::getenv("NX_MODCPK"); off && off[0] == '0') return;
     if (!scan_mod_cpks()) return;  // no mod needs it: the game is left exactly as it is
@@ -269,24 +336,58 @@ void install_mod_cpk() {
         return;
     }
     const uint64_t text = m->base + m->info->text;
-    const uint32_t* bind = reinterpret_cast<const uint32_t*>(text + kCpkBindOffset);
-    const uint32_t at = *reinterpret_cast<const uint32_t*>(text + kCpkPatchOffset);
-    log("p3p: modcpk: main+%llx: %08x %08x %08x %08x (bind), main+%llx: %08x (patch site)", (unsigned long long)kCpkBindOffset,
-        bind[0], bind[1], bind[2], bind[3], (unsigned long long)kCpkPatchOffset, at);
+    const uint64_t plugin_bind = text + kCpkBindOffset, patch_site = text + kCpkPatchOffset;
+    log_words("plugin bind (main+1e6280 - 0x20)", plugin_bind - 0x20, 16);
+    log_words("plugin patch site (main+1c5424 - 0x10)", patch_site - 0x10, 12);
 
-    const char* mode = std::getenv("NX_MODCPK_PATCH");  // 0: skip, force: always, else only when it looks right
-    const int64_t dist = cond_branch_distance(at);
+    // 1. The function found from the game's own calls (works on any version of the game).
+    const uint64_t ro_lo = m->base + m->info->ro, ro_hi = ro_lo + m->info->ro_size;
+    const uint64_t da_lo = m->base + m->info->data, da_hi = da_lo + m->info->data_size;
+    auto str_at = [&](uint64_t a) -> const char* {
+        const uint64_t hi = (a >= ro_lo && a < ro_hi) ? ro_hi : (a >= da_lo && a < da_hi) ? da_hi : 0;
+        if (!hi || hi - a < 12) return nullptr;
+        const char* str = reinterpret_cast<const char*>(a);
+        return strnlen(str, std::min<uint64_t>(200, hi - a)) < 200 ? str : nullptr;
+    };
+    std::vector<std::string> strings;
+    std::vector<CpkBindCall> calls = scan_cpk_binds(reinterpret_cast<const uint32_t*>(text), m->info->text_size / 4, text,
+                                                    str_at, &strings);
+    std::sort(calls.begin(), calls.end(), [](const CpkBindCall& x, const CpkBindCall& y) { return x.count > y.count; });
+    for (const auto& s : strings) log("p3p: modcpk: the game loads the string %s", s.c_str());
+    for (size_t i = 0; i < calls.size() && i < 5; i++)
+        log("p3p: modcpk: %d call(s) bind a CPK through main+%llx (first %08x)", calls[i].count,
+            (unsigned long long)(calls[i].target - text), *reinterpret_cast<const uint32_t*>(calls[i].target));
+    uint64_t target = 0;
+    bool from_plugin = false;
+    if (!calls.empty() && (calls.size() == 1 || calls[0].count >= 2 * calls[1].count) &&
+        plausible_entry(*reinterpret_cast<const uint32_t*>(calls[0].target)))
+        target = calls[0].target;
+    // 2. The plugin's own address, when the instruction there starts a function.
+    if (!target && plausible_entry(*reinterpret_cast<const uint32_t*>(plugin_bind))) {
+        target = plugin_bind;
+        from_plugin = true;
+    }
+    if (!target) {
+        log("p3p: modcpk: no function to hook was found (this game version is not the one the plugin was made for): "
+            "the mod's CPK is not loaded");
+        return;
+    }
+    if (target == plugin_bind) from_plugin = true;
+    log("p3p: modcpk: hooking the CPK bind at main+%llx%s", (unsigned long long)(target - text),
+        from_plugin ? " (the plugin's address)" : "");
+
+    // The plugin's one-instruction patch belongs to the plugin's game version: only with its address for the hook.
+    const uint32_t at = *reinterpret_cast<const uint32_t*>(patch_site);
+    const char* mode = std::getenv("NX_MODCPK_PATCH");  // 0: skip, force: always
     if (at == kCpkPatchWord) {
         log("p3p: modcpk: the patch is already there");
-    } else if (mode && mode[0] == '0') {
-        log("p3p: modcpk: instruction patch off (NX_MODCPK_PATCH=0)");
-    } else if (dist == 0x90 || (mode && std::strcmp(mode, "force") == 0)) {
-        log("p3p: modcpk: patch main+%llx: %08x -> %08x: %s", (unsigned long long)kCpkPatchOffset, at, kCpkPatchWord,
-            patch_guest_word(text + kCpkPatchOffset, kCpkPatchWord) ? "ok" : "FAILED");
+    } else if ((mode && mode[0] == '0') || (!from_plugin && !(mode && std::strcmp(mode, "force") == 0))) {
+        log("p3p: modcpk: instruction patch left out (main+%llx holds %08x)", (unsigned long long)kCpkPatchOffset, at);
     } else {
-        log("p3p: modcpk: main+%llx holds %08x, not a branch of +0x90: patch left out", (unsigned long long)kCpkPatchOffset, at);
+        log("p3p: modcpk: patch main+%llx: %08x -> %08x: %s", (unsigned long long)kCpkPatchOffset, at, kCpkPatchWord,
+            patch_guest_word(patch_site, kCpkPatchWord) ? "ok" : "FAILED");
     }
-    g_cpk_bind_orig = hook_function(text + kCpkBindOffset, cpk_bind_hook);
+    g_cpk_bind_orig = hook_function(target, cpk_bind_hook);
     log("p3p: modcpk: hook of the CPK bind: %s", g_cpk_bind_orig ? "ok" : "FAILED");
 }
 
