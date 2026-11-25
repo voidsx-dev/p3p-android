@@ -392,6 +392,23 @@ uint32_t adr_to(uint64_t from, uint64_t to, uint32_t rd) {
     return 0x10000000u | (uint32_t(d & 3) << 29) | ((uint32_t(d >> 2) & 0x7FFFFu) << 5) | rd;
 }
 
+// adrp xd, the page of `to`, as placed at `from` (+-4 GiB). False when out of range.
+bool adrp_to(uint64_t from, uint64_t to, uint32_t rd, uint32_t& out) {
+    const int64_t pages = int64_t(to >> 12) - int64_t(from >> 12);
+    if (pages < -(int64_t(1) << 20) || pages >= (int64_t(1) << 20)) return false;
+    out = 0x90000000u | (uint32_t(pages & 3) << 29) | ((uint32_t(pages >> 2) & 0x7FFFFu) << 5) | rd;
+    return true;
+}
+
+// adrp x16, to / add x16, x16, #lo12 / br x16: three words at `at` that reach `to` anywhere within +-4 GiB (x16 is the
+// intra-procedure scratch register: free at a function's entry and at the first instructions the hook gives back).
+bool far_jump(uint64_t at, uint64_t to, uint32_t out[3]) {
+    if (!adrp_to(at, to, 16, out[0])) return false;
+    out[1] = 0x91000000u | (uint32_t(to & 0xFFF) << 10) | (16u << 5) | 16u;
+    out[2] = 0xD61F0200u;
+    return true;
+}
+
 uint32_t ldr_literal(uint64_t from, uint64_t to, uint32_t rt) {
     const int64_t d = int64_t(to - from);
     if ((d & 3) || d < -(int64_t(1) << 20) || d >= (int64_t(1) << 20)) fatal("nce: literal out of range");
@@ -636,6 +653,61 @@ void enter(CPU& c, uint64_t target) {
     b->ctx = prev;
 }
 
+// A function more than ~112 MiB from the module's stub region (the region sits after the module, and main's data is
+// 150 MB: its code is out of a B's reach): its first three instructions become the far jump to the stub, and the
+// original is those three instructions moved (an adrp re-encoded for its new place), then the far jump back. Anything
+// else that depends on its address in those instructions: not hooked (0).
+uint64_t hook_far(Region& r, uint64_t addr, HleFn fn) {
+    uint32_t w[3];
+    for (int k = 0; k < 3; k++) w[k] = ld<uint32_t>(addr + 4 * k);
+    for (int k = 0; k < 3; k++) {
+        if (pc_relative(w[k]) && (w[k] & 0x9F000000u) != 0x90000000u) {
+            log("nce: hook at %s: instruction %d (%08x) depends on its address", describe(addr).c_str(), k, w[k]);
+            return 0;
+        }
+    }
+    const uint32_t index = g_hook_count.load();
+    if (index >= kMaxHooks) return 0;
+    if (r.cur + 4 * 12 + 64 > r.end) return 0;
+
+    const uint64_t from = r.cur;
+    if (!protect(r.base, kRegionSize, PROT_READ | PROT_WRITE | PROT_EXEC)) protect(r.base, kRegionSize, PROT_READ | PROT_WRITE);
+    const uint64_t original = r.cur;
+    bool ok = true;
+    for (int k = 0; k < 3 && ok; k++) {
+        uint32_t x = w[k];
+        if ((x & 0x9F000000u) == 0x90000000u) {  // adrp: the same page from its new place
+            int64_t imm = int64_t(((x >> 5) & 0x7FFFFu) << 2 | ((x >> 29) & 3u));
+            if (imm & 0x100000) imm -= 0x200000;
+            const uint64_t page = ((addr + 4 * k) & ~uint64_t(0xFFF)) + uint64_t(imm << 12);
+            ok = adrp_to(r.cur, page, x & 31, x);
+        }
+        r.emit(x);
+    }
+    uint32_t back[3], jump[3];
+    ok = ok && far_jump(r.cur, addr + 12, back);
+    if (ok) {
+        for (uint32_t b : back) r.emit(b);
+        const uint64_t stub = r.emit(kPushX16X17);
+        r.emit(movz_w16(index));
+        r.emit(movk_w16_hi(0x4000));
+        r.emit(b_to(r.cur, r.common));
+        ok = far_jump(addr, stub, jump);
+        if (ok) {
+            g_hooks[index] = fn;
+            g_hook_count.store(index + 1);
+        }
+    }
+    protect(r.base, kRegionSize, PROT_READ | PROT_EXEC);
+    clear_cache(from, r.cur - from);
+    if (!ok) {
+        log("nce: hook at %s: out of reach", describe(addr).c_str());
+        return 0;
+    }
+    write_code(addr, jump, 12);
+    return original;
+}
+
 uint64_t hook(uint64_t addr, HleFn fn) {
     std::lock_guard lk(g_regions_lock);
     const LoadedModule* m = module_at(addr);
@@ -643,6 +715,11 @@ uint64_t hook(uint64_t addr, HleFn fn) {
     if (it == g_regions.end() || addr - (m->base + m->info->text) >= m->info->text_size) {
         log("nce: hook at %llx: not in a module's code", (unsigned long long)addr);
         return 0;
+    }
+    {
+        const int64_t reach = int64_t(0x7000000);  // a B reaches 128 MiB: keep a margin
+        const int64_t dist = int64_t(it->second.cur) - int64_t(addr);
+        if (dist > reach || dist < -reach) return hook_far(it->second, addr, fn);
     }
     const uint32_t first = ld<uint32_t>(addr);
     if (pc_relative(first)) {
