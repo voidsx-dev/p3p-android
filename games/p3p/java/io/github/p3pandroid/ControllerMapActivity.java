@@ -104,7 +104,8 @@ public final class ControllerMapActivity extends Activity implements InputManage
         Map<String, String> config = Launcher.readConfig(configFile());
         map = PadMapping.parse(config.get(PadMapping.KEY));
         mapOn = !"0".equals(config.get("NX_PAD_MAP_ON"));
-        String s = config.get("NX_TOUCH_STYLE");
+        String s = config.get("NX_PAD_STYLE");
+        if (s == null) s = config.get("NX_TOUCH_STYLE");
         if (s != null) style = s;
         build();
         refreshAll();

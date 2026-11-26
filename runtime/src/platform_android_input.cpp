@@ -85,13 +85,13 @@ bool g_generic_pad = false;  // a BUTTON_1..12 key came in: a generic (PS2-style
 uint64_t g_last_touch_ns = 0;  // the drawn controls dim after kTouchIdleNs without a touch
 constexpr uint64_t kTouchIdleNs = 8'000'000'000;
 
-// NX_TOUCH_STYLE (launcher: Button layout style): "switch" (default), "xbox" or "ps2". It decides what the four face
-// buttons of a controller (and the drawn touch buttons) do, by position: Switch puts A (confirm) on the right and B
-// (back) at the bottom; Xbox and PlayStation 2 put confirm at the bottom (A / Cross) and back on the right (B / Circle).
+// NX_PAD_STYLE controls physical gamepads independently from NX_TOUCH_STYLE (the on-screen appearance).
+// NX_TOUCH_STYLE is a legacy fallback for configs created before the two settings were separated.
 enum class Style { kSwitch, kXbox, kPs2 };
 Style pad_style() {
     static const Style s = [] {
-        const char* e = std::getenv("NX_TOUCH_STYLE");
+        const char* e = std::getenv("NX_PAD_STYLE");
+        if (!e || !*e) e = std::getenv("NX_TOUCH_STYLE");
         if (e && std::strcmp(e, "ps2") == 0) return Style::kPs2;
         if (e && std::strcmp(e, "xbox") == 0) return Style::kXbox;
         return Style::kSwitch;

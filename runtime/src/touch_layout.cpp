@@ -140,11 +140,10 @@ int env_int(const char* name, int fallback) {
     return e && *e ? std::atoi(e) : fallback;
 }
 
-// Xbox and PlayStation 2 share the face-button positions (confirm at the bottom, back on the right); the drawn
-// labels stay the letters A / B / X / Y (the overlay font has no PlayStation shapes).
+// The on-screen overlay offers Switch and Xbox appearances only. Physical PS2 mapping lives in NX_PAD_STYLE.
 bool xbox_style() {
     const char* e = std::getenv("NX_TOUCH_STYLE");
-    return e && (std::strcmp(e, "xbox") == 0 || std::strcmp(e, "ps2") == 0);
+    return e && std::strcmp(e, "xbox") == 0;
 }
 
 // The layout as the launcher set it (config.txt, which becomes the environment): NX_TOUCH_LAYOUT replaces the positions
@@ -175,11 +174,6 @@ const std::vector<TouchButton>& buttons() {
 }
 
 }  // namespace
-
-bool touch_ps2_style() {
-    const char* e = std::getenv("NX_TOUCH_STYLE");
-    return e && std::strcmp(e, "ps2") == 0;
-}
 
 // NX_TOUCH_SHOW=0 (launcher: On-screen buttons off): nothing is drawn and touches are ignored.
 bool touch_enabled() {

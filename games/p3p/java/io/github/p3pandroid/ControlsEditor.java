@@ -45,7 +45,6 @@ public class ControlsEditor extends Activity {
     float[][] pos = new float[NAMES.length][];
     float sizeScale = 1;
     boolean xboxStyle;
-    boolean ps2Style;
     EditorView view;
 
     String t(String spanish, String english) { return Lang.t(spanish, english); }
@@ -56,9 +55,8 @@ public class ControlsEditor extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Map<String, String> config = Launcher.readConfig(configFile());
-        String touchStyle = config.get("NX_TOUCH_STYLE");
-        xboxStyle = "xbox".equalsIgnoreCase(touchStyle) || "ps2".equalsIgnoreCase(touchStyle);
-        ps2Style = "ps2".equalsIgnoreCase(touchStyle);
+        // Only the Xbox visual profile swaps the virtual face-button labels and positions.
+        xboxStyle = "xbox".equalsIgnoreCase(config.get("NX_TOUCH_STYLE"));
         try {
             sizeScale = Math.max(50, Math.min(160, Integer.parseInt(config.get("NX_TOUCH_SIZE")))) / 100f;
         } catch (Exception ignored) {
@@ -75,11 +73,8 @@ public class ControlsEditor extends Activity {
         middle.setOrientation(LinearLayout.VERTICAL);
         middle.setGravity(Gravity.CENTER_HORIZONTAL);
         TextView help = new TextView(this);
-        help.setText(ps2Style
-                ? t("Arrastra os controles para ajustar a posição.\n✕ confirma, ○ volta. A cruceta e os quatro botões se movem juntos. Vermelho: estão se tocando.",
-                    "Drag controls to adjust their position.\n✕ confirms, ○ goes back. The d-pad and face buttons move together. Red: they overlap.")
-                : t("Arrasta los controles a donde quieras.\nLa cruceta y A B X Y se mueven juntos. En rojo: se tocan.",
-                    "Drag the controls where you want them.\nThe d-pad and A B X Y move together. Red: they touch."));
+        help.setText(t("Arrastra los controles a donde quieras.\nLa cruceta y A B X Y se mueven juntos. En rojo: se tocan.",
+                "Drag the controls where you want them.\nThe d-pad and A B X Y move together. Red: they touch."));
         help.setTextColor(Color.rgb(230, 230, 230));
         help.setTextSize(15);
         help.setGravity(Gravity.CENTER);
@@ -193,21 +188,12 @@ public class ControlsEditor extends Activity {
         }
 
         String faceLabel(int i) {
-            if (ps2Style) {
-                switch (i) {
-                    case 0: return "○"; // right: back
-                    case 1: return "✕"; // bottom: confirm
-                    case 2: return "△"; // top
-                    case 3: return "□"; // left
-                    default: return LABELS[i];
-                }
-            }
             if (!xboxStyle) return LABELS[i];
             switch (i) {
-                case 0: return "B";
-                case 1: return "A";
-                case 2: return "Y";
-                case 3: return "X";
+                case 0: return "B"; // right position
+                case 1: return "A"; // bottom position
+                case 2: return "Y"; // top position
+                case 3: return "X"; // left position
                 default: return LABELS[i];
             }
         }

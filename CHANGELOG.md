@@ -1,4 +1,10 @@
-Changelog
+# Changelog
+
+## 0.6.0
+- Separate the on-screen button appearance (Switch/Xbox) from the physical controller layout (Switch/Xbox/PS2).
+- Keep PS2 USB adapter mapping available without exposing a PS2 touch-overlay style.
+- Add quick performance profiles: Balanced (720p/30), Performance (720p/60), and Quality (1080p/30).
+- Bump Android version to 0.6.0 (versionCode 13).
 
 All notable changes to P3P Android are documented here.
 

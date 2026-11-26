@@ -64,7 +64,7 @@ import java.util.Map;
  *               get the normal one, and the runtime reopens its stream when the output changes
  *   on-screen controls on (default) or off (NX_TOUCH_SHOW), their size (NX_TOUCH_SIZE) and opacity (NX_TOUCH_OPACITY),
  *               and where they are (NX_TOUCH_LAYOUT, written by ControlsEditor)
- *   controller   the button layout style (NX_TOUCH_STYLE: switch, xbox, ps2: which face button confirms, for controllers and
+ *   controller   the on-screen button style (NX_TOUCH_STYLE: switch or xbox) and physical controller mapping style (NX_PAD_STYLE: switch, xbox or ps2);
  *               the touch buttons), the controllers Android sees, and the mapping screen (ControllerMapActivity, which
  *               writes NX_PAD_MAP: the player's own buttons and sticks)
  * and imports or exports the saves (user/save, SaveFiles.java): a ZIP or a folder in, a ZIP in Download out.
@@ -103,7 +103,8 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
     final Map<String, String> config = new LinkedHashMap<>();
     TextView status;
     TextView padStatus;      // the controllers Android sees (Controls → Controller)
-    TextView styleHintView;  // the line under "Button layout style"
+    TextView styleHintView;  // the line under the on-screen button style
+    TextView padStyleHintView;  // the line under the physical controller layout
     Button play;
     static final int PICK_ZIP = 1, PICK_FOLDER = 2, PICK_GAME = 3, PICK_KEYS = 4, PICK_ICON = 5, PREPARE = 6;
 
@@ -321,9 +322,11 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         options.add(new Option("NX_TOUCH_OPACITY", "Opacidad de los botones", "Button opacity",
                 new String[] {"50", "85", "100"}, new String[] {"Baja", "Normal", "Alta"},
                 new String[] {"Low", "Normal", "High"}, 1));
-        options.add(new Option("NX_TOUCH_STYLE", "Estilo de botones", "Button layout style", new String[] {"switch", "xbox", "ps2"},
-                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2"},
-                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2"}, 0));
+        options.add(new Option("NX_TOUCH_STYLE", "Visual dos botões na tela", "On-screen button style", new String[] {"switch", "xbox"},
+                new String[] {"Nintendo Switch", "Xbox"}, new String[] {"Nintendo Switch", "Xbox"}, 0));
+        options.add(new Option("NX_PAD_STYLE", "Layout do controle físico", "Physical controller layout", new String[] {"switch", "xbox", "ps2"},
+                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2 / USB PS2"},
+                new String[] {"Nintendo Switch", "Xbox", "PlayStation 2 / USB PS2"}, 0));
         build();
     }
 
@@ -390,41 +393,28 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(24), dp(20), dp(24));
 
-        LinearLayout hero = Ui.card(this, root);
-        TextView eyebrow = new TextView(this);
-        eyebrow.setText("P3P  /  ANDROID RECOMP");
-        eyebrow.setTextColor(Ui.ACCENT);
-        eyebrow.setTextSize(11);
-        eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
-        eyebrow.setLetterSpacing(0.14f);
-        eyebrow.setPadding(0, 0, 0, dp(5));
-        hero.addView(eyebrow);
         TextView title = new TextView(this);
         title.setText("PERSONA 3 PORTABLE");
         title.setTextColor(Color.WHITE);
-        title.setTextSize(25);
+        title.setTextSize(26);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setLetterSpacing(0.035f);
-        hero.addView(title);
+        title.setLetterSpacing(0.04f);
+        root.addView(title);
         TextView subtitle = new TextView(this);
         subtitle.setText("Android recomp  \u2022  v" + versionName());
-        subtitle.setTextColor(Ui.MUTED);
-        subtitle.setTextSize(12.5f);
+        subtitle.setTextColor(Ui.ACCENT);
+        subtitle.setTextSize(13);
         subtitle.setTypeface(Ui.medium());
-        subtitle.setPadding(0, dp(4), 0, 0);
-        hero.addView(subtitle);
+        subtitle.setPadding(0, dp(2), 0, 0);
+        root.addView(subtitle);
 
-        LinearLayout statusCard = Ui.card(this, root);
-        statusCard.addView(Ui.title(this, t("Estado del juego", "Game status")));
         status = new TextView(this);
         status.setTextColor(Ui.TEXT);
         status.setTextSize(14.5f);
         status.setLineSpacing(0, 1.1f);
-        statusCard.addView(status);
+        Ui.card(this, root).addView(status);
 
-        LinearLayout files = section(root, t("Configuración del juego", "Game setup"),
-                t("Selecciona el juego base y sus claves para preparar la instalación.",
-                  "Choose the base game and its keys to prepare the installation."));
+        LinearLayout files = section(root, t("Archivos del juego", "Game files"), null);
         addRow(files, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
                 new View.OnClickListener() {
                     @Override
@@ -448,6 +438,12 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 card = section(root, t(section[0], section[1]), advice == null ? null : t(advice[0], advice[1]));
             }
             card.addView(optionBlock(o));
+            if ("NX_SHOW_FPS".equals(o.key)) {
+                addRow(card, t("Perfil rápido de desempenho", "Quick performance profile"), t("Escolher", "Choose"),
+                        new View.OnClickListener() {
+                            @Override public void onClick(View v) { choosePerformanceProfile(); }
+                        });
+            }
             // Right after the touch buttons' own options: where they are.
             if ("NX_TOUCH_OPACITY".equals(o.key))
                 addRow(card, t("Posición de los controles", "Controls position"), t("Mover", "Move"),
@@ -480,11 +476,9 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             }
         });
 
-        // Mods get their own card so they are easy to find and separate from maintenance actions.
-        LinearLayout mods = section(root, t("Mods", "Mods"),
-                t("Activa, desactiva y organiza los mods instalados.",
-                  "Enable, disable and organize installed mods."));
-        addRow(mods, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"), new View.OnClickListener() {
+        // Mods manager: scans the existing mods/ folder and manages RomFS overlays.
+        LinearLayout tools = section(root, t("Herramientas", "Tools"), null);
+        addRow(tools, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -494,9 +488,23 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 startActivity(new Intent(Launcher.this, ModManagerActivity.class));
             }
         });
+        addRow(tools, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
+                    }
+                });
+
+        addRow(tools, t("Restaurar ajustes", "Reset settings"), t("Restaurar", "Reset"), new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                askResetSettings();
+            }
+        });
 
         // Saves: a dedicated, launcher-styled backup panel. Import/export behavior is unchanged.
-        LinearLayout saves = section(root, t("Copias de seguridad", "Save backups"), null);
+        LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
 
         TextView savesIntro = new TextView(this);
         savesIntro.setText(t("PROTEJA SEU PROGRESSO", "PROTECT YOUR PROGRESS"));
@@ -558,19 +566,6 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         savesFootnote.setPadding(0, dp(10), 0, 0);
         saves.addView(savesFootnote);
 
-        // Diagnostics and reset are maintenance actions, separate from gameplay tools.
-        LinearLayout system = section(root, t("Sistema", "System"), null);
-        addRow(system, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
-                new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
-                    }
-                });
-        addRow(system, t("Restaurar ajustes", "Reset settings"), t("Restaurar", "Reset"),
-                new View.OnClickListener() {
-                    @Override public void onClick(View v) { askResetSettings(); }
-                });
-
         // The Play button stays at the bottom while the options scroll.
         play = Ui.primary(this);
         play.setOnClickListener(new View.OnClickListener() {
@@ -623,13 +618,43 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         updateButtons(null);
     }
 
-    // The line under "Button layout style": what the chosen profile does (0 Nintendo Switch, 1 Xbox, 2 PlayStation 2).
+    void choosePerformanceProfile() {
+        final String[] labels = {
+                t("Equilibrado · 720p / 30 FPS", "Balanced · 720p / 30 FPS"),
+                t("Desempenho · 720p / 60 FPS", "Performance · 720p / 60 FPS"),
+                t("Qualidade · 1080p / 30 FPS", "Quality · 1080p / 30 FPS")
+        };
+        new AlertDialog.Builder(this).setTitle(t("Perfil rápido", "Quick profile"))
+                .setItems(labels, new android.content.DialogInterface.OnClickListener() {
+                    @Override public void onClick(android.content.DialogInterface d, int which) {
+                        setOption("RESOLUTION", which == 2 ? "1080p" : "720p");
+                        setOption("NX_FPS_CAP", which == 1 ? "60" : "30");
+                        setOption("NX_FSR", which == 0 ? "0" : "1");
+                        updateButtons(null);
+                        save();
+                        tell(t("Perfil aplicado", "Profile applied"), labels[which]);
+                    }
+                }).setNegativeButton(t("Cancelar", "Cancel"), null).show();
+    }
+
+    void setOption(String key, String value) {
+        for (Option o : options) if (key.equals(o.key))
+            for (int i = 0; i < o.values.length; i++) if (value.equals(o.values[i])) o.pick = i;
+    }
+
+    // The touch overlay offers visual styles only; physical PS2 mapping is configured separately.
     String styleHintText(int choice) {
-        if (choice == 1) return t("Usa la posición y los símbolos de Xbox.", "Use Xbox button positions and labels.");
-        if (choice == 2)
-            return t("Mostra ✕, ○, □ e △ nos controles virtuais. ✕ confirma e ○ volta.",
-                    "Shows ✕, ○, □ and △ on the virtual controls. ✕ confirms and ○ goes back.");
-        return t("Usa la posición y los símbolos de Nintendo.", "Use Nintendo button positions and labels.");
+        if (choice == 1) return t("Visual Xbox: os botões virtuais seguem as posições e letras do Xbox.",
+                "Xbox look: virtual buttons use Xbox positions and labels.");
+        return t("Visual Switch: os botões virtuais seguem as posições e letras do Nintendo Switch.",
+                "Switch look: virtual buttons use Nintendo Switch positions and labels.");
+    }
+
+    String padStyleHintText(int choice) {
+        if (choice == 2) return t("Compatibilidade com adaptadores USB de PS2 (ordem comum PC TWIN SHOCK).",
+                "Compatibility with PS2 USB adapters (common PC TWIN SHOCK button order).");
+        if (choice == 1) return t("Interpreta os botões físicos no padrão Xbox.", "Interprets physical buttons using the Xbox layout.");
+        return t("Interpreta os botões físicos no padrão Nintendo Switch.", "Interprets physical buttons using the Nintendo Switch layout.");
     }
 
     // One option: its name, and its choices side by side (the chosen one filled).
@@ -639,9 +664,10 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         block.setPadding(0, dp(6), 0, dp(8));
         block.addView(Ui.label(this, t(o.es, o.en)));
         final TextView styleHint;
-        if ("NX_TOUCH_STYLE".equals(o.key)) {
-            styleHint = Ui.hint(this, styleHintText(o.pick));
-            styleHintView = styleHint;
+        if ("NX_TOUCH_STYLE".equals(o.key) || "NX_PAD_STYLE".equals(o.key)) {
+            styleHint = Ui.hint(this, "NX_PAD_STYLE".equals(o.key) ? padStyleHintText(o.pick) : styleHintText(o.pick));
+            if ("NX_TOUCH_STYLE".equals(o.key)) styleHintView = styleHint;
+            else padStyleHintView = styleHint;
             block.addView(styleHint);
         } else {
             styleHint = null;
@@ -657,7 +683,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 public void onClick(View v) {
                     o.pick = choice;
                     if (styleHint != null) {
-                        styleHint.setText(styleHintText(choice));
+                        styleHint.setText("NX_PAD_STYLE".equals(o.key) ? padStyleHintText(choice) : styleHintText(choice));
                     }
                     updateButtons(null);
                     save();
@@ -677,6 +703,11 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
 
     void refresh() {
         load();
+        // Migrate older configs where one PS2 choice controlled both physical pads and the touch overlay.
+        if (!config.containsKey("NX_PAD_STYLE") && "ps2".equals(config.get("NX_TOUCH_STYLE"))) {
+            config.put("NX_PAD_STYLE", "ps2");
+            config.put("NX_TOUCH_STYLE", "switch");
+        }
         for (Option o : options) {
             String v = config.get(o.key);
             if ("RESOLUTION".equals(o.key)) {
@@ -690,8 +721,10 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 if (o.values[k].equals(v)) o.pick = k;
         }
         updateButtons(getWindow().getDecorView());
-        for (Option o : options)
+        for (Option o : options) {
             if ("NX_TOUCH_STYLE".equals(o.key) && styleHintView != null) styleHintView.setText(styleHintText(o.pick));
+            if ("NX_PAD_STYLE".equals(o.key) && padStyleHintView != null) padStyleHintView.setText(padStyleHintText(o.pick));
+        }
         updatePadStatus();
         if (!hasAccess()) {
             status.setText(t("Hace falta el permiso de acceso a todos los archivos para leer los datos del juego.",
@@ -775,9 +808,12 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                     public void onClick(android.content.DialogInterface d, int which) {
                         for (Option o : options) o.pick = o.def;
                         updateButtons(null);
-                        for (Option o : options)
+                        for (Option o : options) {
                             if ("NX_TOUCH_STYLE".equals(o.key) && styleHintView != null)
                                 styleHintView.setText(styleHintText(o.pick));
+                            if ("NX_PAD_STYLE".equals(o.key) && padStyleHintView != null)
+                                padStyleHintView.setText(padStyleHintText(o.pick));
+                        }
                         save();
                     }
                 })
@@ -1031,21 +1067,25 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         if ("NX_FPS_CAP".equals(key)) return new String[] {"Rendimiento", "Performance"};
         if ("NX_AUDIO_MODE".equals(key)) return new String[] {"Audio", "Audio"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
-        if ("NX_TOUCH_STYLE".equals(key)) return new String[] {"Mando", "Controller"};
+        if ("NX_TOUCH_STYLE".equals(key)) return new String[] {"Controles", "Controls"};
+        if ("NX_PAD_STYLE".equals(key)) return new String[] {"Mando físico", "Physical controller"};
         return null;
     }
 
     // A line of advice under a section's title.
     String[] hintOf(String key) {
         if ("RESOLUTION".equals(key))
-            return new String[] {"720p es la opción recomendada. 1080p exige más del dispositivo.",
-                    "720p is recommended. 1080p puts more load on the device."};
+            return new String[] {"720p es la resolución de la consola portátil y la que mejor va; 1080p necesita un móvil potente.",
+                    "720p is the handheld console's resolution and the one that runs best; 1080p needs a powerful phone."};
         if ("NX_FPS_CAP".equals(key))
             return new String[] {"En móviles modestos, 30 fps suele ir más fluido que 60. \"Priorizar los rápidos\" ayuda cuando la GPU no está al límite.",
                     "On modest phones 30 fps is usually smoother than 60. \"Prefer the fast ones\" helps when the GPU is not at its limit."};
         if ("NX_TOUCH_STYLE".equals(key))
-            return new String[] {"Configura los botones virtuales o conecta un mando USB/Bluetooth y personaliza su asignación.",
-                    "Configure touch buttons or connect a USB/Bluetooth controller and customize its mapping."};
+            return new String[] {"Escolha apenas a aparência dos botões virtuais. O layout do controle USB/Bluetooth é configurado separadamente.",
+                    "Choose only the appearance of virtual buttons. USB/Bluetooth controller layout is configured separately."};
+        if ("NX_PAD_STYLE".equals(key))
+            return new String[] {"Para adaptadores USB de PS2, selecione PlayStation 2 / USB PS2. O visual dos botões na tela não muda.",
+                    "For PS2 USB adapters, select PlayStation 2 / USB PS2. The on-screen button appearance will not change."};
         if ("NX_AUDIO_MODE".equals(key))
             return new String[] {"Si el sonido falla con auriculares, prueba \"Normal\".",
                     "If the sound breaks up with headphones, try \"Normal\"."};
