@@ -499,7 +499,21 @@ bool present_pass_record(VkCommandBuffer cb, GpuImage& src, const int32_t* crop,
     Upload ubo = upload_alloc(kOverlayBytes, 256);
     if (count) {
         std::memset(ubo.ptr, 0, kOverlayBytes);
-        std::memcpy(static_cast<uint8_t*>(ubo.ptr) + 16 * kOverlayMax, kFont, sizeof kFont);
+        uint32_t overlay_font[25 * 7];
+        std::memcpy(overlay_font, kFont, sizeof overlay_font);
+        if (plat::touch_ps2_style()) {
+            // Reuse the four face-button glyph slots for Cross, Circle, Square and Triangle.
+            // The runtime still swaps the logical button actions to the PS2 confirm/back positions.
+            constexpr uint32_t ps2_face[4][7] = {
+                {0x11u, 0x0Au, 0x04u, 0x04u, 0x04u, 0x0Au, 0x11u}, // Cross
+                {0x0Eu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x0Eu}, // Circle
+                {0x1Fu, 0x11u, 0x11u, 0x11u, 0x11u, 0x11u, 0x1Fu}, // Square
+                {0x04u, 0x0Eu, 0x0Eu, 0x1Fu, 0x11u, 0x11u, 0x11u}  // Triangle
+            };
+            for (size_t glyph = 0; glyph < 4; ++glyph)
+                std::memcpy(overlay_font + (glyph + 1) * 7, ps2_face[glyph], sizeof ps2_face[glyph]);
+        }
+        std::memcpy(static_cast<uint8_t*>(ubo.ptr) + 16 * kOverlayMax, overlay_font, sizeof overlay_font);
         auto* dst = reinterpret_cast<float*>(ubo.ptr);
         for (size_t k = 0; k < count; k++)
             dst[4 * k] = shapes[k].x, dst[4 * k + 1] = shapes[k].y, dst[4 * k + 2] = shapes[k].r,

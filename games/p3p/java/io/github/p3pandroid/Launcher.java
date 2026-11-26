@@ -390,20 +390,29 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(24), dp(20), dp(24));
 
+        LinearLayout hero = Ui.card(this, root);
+        TextView eyebrow = new TextView(this);
+        eyebrow.setText("P3P  /  ANDROID RECOMP");
+        eyebrow.setTextColor(Ui.ACCENT);
+        eyebrow.setTextSize(11);
+        eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
+        eyebrow.setLetterSpacing(0.14f);
+        eyebrow.setPadding(0, 0, 0, dp(5));
+        hero.addView(eyebrow);
         TextView title = new TextView(this);
         title.setText("PERSONA 3 PORTABLE");
         title.setTextColor(Color.WHITE);
-        title.setTextSize(26);
+        title.setTextSize(25);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setLetterSpacing(0.04f);
-        root.addView(title);
+        title.setLetterSpacing(0.035f);
+        hero.addView(title);
         TextView subtitle = new TextView(this);
         subtitle.setText("Android recomp  \u2022  v" + versionName());
-        subtitle.setTextColor(Ui.ACCENT);
-        subtitle.setTextSize(13);
+        subtitle.setTextColor(Ui.MUTED);
+        subtitle.setTextSize(12.5f);
         subtitle.setTypeface(Ui.medium());
-        subtitle.setPadding(0, dp(2), 0, 0);
-        root.addView(subtitle);
+        subtitle.setPadding(0, dp(4), 0, 0);
+        hero.addView(subtitle);
 
         LinearLayout statusCard = Ui.card(this, root);
         statusCard.addView(Ui.title(this, t("Estado del juego", "Game status")));
@@ -618,8 +627,8 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
     String styleHintText(int choice) {
         if (choice == 1) return t("Usa la posición y los símbolos de Xbox.", "Use Xbox button positions and labels.");
         if (choice == 2)
-            return t("Usa la posición de los botones del mando de PlayStation 2 (Cruz confirma, Círculo vuelve).",
-                    "Use PlayStation 2 controller button positions (Cross confirms, Circle goes back).");
+            return t("Mostra ✕, ○, □ e △ nos controles virtuais. ✕ confirma e ○ volta.",
+                    "Shows ✕, ○, □ and △ on the virtual controls. ✕ confirms and ○ goes back.");
         return t("Usa la posición y los símbolos de Nintendo.", "Use Nintendo button positions and labels.");
     }
 

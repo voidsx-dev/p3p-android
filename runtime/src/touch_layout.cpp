@@ -176,6 +176,11 @@ const std::vector<TouchButton>& buttons() {
 
 }  // namespace
 
+bool touch_ps2_style() {
+    const char* e = std::getenv("NX_TOUCH_STYLE");
+    return e && std::strcmp(e, "ps2") == 0;
+}
+
 // NX_TOUCH_SHOW=0 (launcher: On-screen buttons off): nothing is drawn and touches are ignored.
 bool touch_enabled() {
     // Read on demand so GameActivity's Quick Menu can toggle controls during gameplay.
