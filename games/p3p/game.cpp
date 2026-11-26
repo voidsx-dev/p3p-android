@@ -367,6 +367,29 @@ void install_mod_cpk() {
         target = plugin_bind;
         from_plugin = true;
     }
+    // Some P3P 1.0.0 executables place the plugin's recorded address 0x10 bytes
+    // into the function prologue. The log's instruction window then looks like:
+    //   main+1e6270: sub sp, sp, #0x50   (real entry)
+    //   main+1e6274: stp x29, x30, [sp, #0x10]
+    //   main+1e6278: add x29, sp, #0x10
+    //   main+1e6280: stp x22, x21, [sp, #0x50]
+    // Hook the actual entry only when that preceding instruction is a plausible
+    // prologue. Do NOT treat it as the plugin's exact address: its separate
+    // instruction patch has a different version-specific offset and must remain
+    // disabled for this fallback.
+    if (!target && plugin_bind >= text + 0x10 &&
+        plausible_entry(*reinterpret_cast<const uint32_t*>(plugin_bind - 0x10))) {
+        const uint32_t entry = *reinterpret_cast<const uint32_t*>(plugin_bind - 0x10);
+        const uint32_t save_fp_lr = *reinterpret_cast<const uint32_t*>(plugin_bind - 0x0c);
+        const uint32_t set_fp = *reinterpret_cast<const uint32_t*>(plugin_bind - 0x08);
+        if ((entry & 0xFF8003FFu) == 0xD10003FFu &&
+            (save_fp_lr & 0xFFC003E0u) == 0xA90003E0u &&
+            (set_fp & 0xFFC003FFu) == 0x910003FDu) {
+            target = plugin_bind - 0x10;
+            log("p3p: modcpk: using verified function prologue at main+%llx (plugin address is +0x10 inside it)",
+                (unsigned long long)(target - text));
+        }
+    }
     if (!target) {
         log("p3p: modcpk: no function to hook was found (this game version is not the one the plugin was made for): "
             "the mod's CPK is not loaded");
