@@ -405,13 +405,17 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         subtitle.setPadding(0, dp(2), 0, 0);
         root.addView(subtitle);
 
+        LinearLayout statusCard = Ui.card(this, root);
+        statusCard.addView(Ui.title(this, t("Estado del juego", "Game status")));
         status = new TextView(this);
         status.setTextColor(Ui.TEXT);
         status.setTextSize(14.5f);
         status.setLineSpacing(0, 1.1f);
-        Ui.card(this, root).addView(status);
+        statusCard.addView(status);
 
-        LinearLayout files = section(root, t("Archivos del juego", "Game files"), null);
+        LinearLayout files = section(root, t("Configuración del juego", "Game setup"),
+                t("Selecciona el juego base y sus claves para preparar la instalación.",
+                  "Choose the base game and its keys to prepare the installation."));
         addRow(files, t("Archivo del juego (.nsp / .xci)", "Game file (.nsp / .xci)"), t("Elegir", "Choose"),
                 new View.OnClickListener() {
                     @Override
@@ -467,9 +471,11 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             }
         });
 
-        // Mods manager: scans the existing mods/ folder and manages RomFS overlays.
-        LinearLayout tools = section(root, t("Herramientas", "Tools"), null);
-        addRow(tools, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"), new View.OnClickListener() {
+        // Mods get their own card so they are easy to find and separate from maintenance actions.
+        LinearLayout mods = section(root, t("Mods", "Mods"),
+                t("Activa, desactiva y organiza los mods instalados.",
+                  "Enable, disable and organize installed mods."));
+        addRow(mods, t("Gestor de mods", "Mod manager"), t("Abrir", "Open"), new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!hasAccess()) {
@@ -479,23 +485,9 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 startActivity(new Intent(Launcher.this, ModManagerActivity.class));
             }
         });
-        addRow(tools, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
-                    }
-                });
-
-        addRow(tools, t("Restaurar ajustes", "Reset settings"), t("Restaurar", "Reset"), new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                askResetSettings();
-            }
-        });
 
         // Saves: a dedicated, launcher-styled backup panel. Import/export behavior is unchanged.
-        LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
+        LinearLayout saves = section(root, t("Copias de seguridad", "Save backups"), null);
 
         TextView savesIntro = new TextView(this);
         savesIntro.setText(t("PROTEJA SEU PROGRESSO", "PROTECT YOUR PROGRESS"));
@@ -556,6 +548,19 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         savesFootnote.setTextSize(11.5f);
         savesFootnote.setPadding(0, dp(10), 0, 0);
         saves.addView(savesFootnote);
+
+        // Diagnostics and reset are maintenance actions, separate from gameplay tools.
+        LinearLayout system = section(root, t("Sistema", "System"), null);
+        addRow(system, t("Diagnóstico del dispositivo", "Device diagnostics"), t("Abrir", "Open"),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        startActivity(new Intent(Launcher.this, DiagnosticsActivity.class));
+                    }
+                });
+        addRow(system, t("Restaurar ajustes", "Reset settings"), t("Restaurar", "Reset"),
+                new View.OnClickListener() {
+                    @Override public void onClick(View v) { askResetSettings(); }
+                });
 
         // The Play button stays at the bottom while the options scroll.
         play = Ui.primary(this);
@@ -1024,14 +1029,14 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
     // A line of advice under a section's title.
     String[] hintOf(String key) {
         if ("RESOLUTION".equals(key))
-            return new String[] {"720p es la resolución de la consola portátil y la que mejor va; 1080p necesita un móvil potente.",
-                    "720p is the handheld console's resolution and the one that runs best; 1080p needs a powerful phone."};
+            return new String[] {"720p es la opción recomendada. 1080p exige más del dispositivo.",
+                    "720p is recommended. 1080p puts more load on the device."};
         if ("NX_FPS_CAP".equals(key))
             return new String[] {"En móviles modestos, 30 fps suele ir más fluido que 60. \"Priorizar los rápidos\" ayuda cuando la GPU no está al límite.",
                     "On modest phones 30 fps is usually smoother than 60. \"Prefer the fast ones\" helps when the GPU is not at its limit."};
         if ("NX_TOUCH_STYLE".equals(key))
-            return new String[] {"Conecta un mando USB o Bluetooth. Si algún botón no hace lo que debe, asígnalo tú mismo.",
-                    "Plug in a USB or Bluetooth controller. If some buttons do not do what they should, map them yourself."};
+            return new String[] {"Configura los botones virtuales o conecta un mando USB/Bluetooth y personaliza su asignación.",
+                    "Configure touch buttons or connect a USB/Bluetooth controller and customize its mapping."};
         if ("NX_AUDIO_MODE".equals(key))
             return new String[] {"Si el sonido falla con auriculares, prueba \"Normal\".",
                     "If the sound breaks up with headphones, try \"Normal\"."};
