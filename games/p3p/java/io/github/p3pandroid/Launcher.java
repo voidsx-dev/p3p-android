@@ -438,12 +438,6 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 card = section(root, t(section[0], section[1]), advice == null ? null : t(advice[0], advice[1]));
             }
             card.addView(optionBlock(o));
-            if ("NX_SHOW_FPS".equals(o.key)) {
-                addRow(card, t("Perfil rápido de desempenho", "Quick performance profile"), t("Escolher", "Choose"),
-                        new View.OnClickListener() {
-                            @Override public void onClick(View v) { choosePerformanceProfile(); }
-                        });
-            }
             // Right after the touch buttons' own options: where they are.
             if ("NX_TOUCH_OPACITY".equals(o.key))
                 addRow(card, t("Posición de los controles", "Controls position"), t("Mover", "Move"),
@@ -616,30 +610,6 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         setContentView(outer);
         updateButtons(null);
-    }
-
-    void choosePerformanceProfile() {
-        final String[] labels = {
-                t("Equilibrado · 720p / 30 FPS", "Balanced · 720p / 30 FPS"),
-                t("Desempenho · 720p / 60 FPS", "Performance · 720p / 60 FPS"),
-                t("Qualidade · 1080p / 30 FPS", "Quality · 1080p / 30 FPS")
-        };
-        new AlertDialog.Builder(this).setTitle(t("Perfil rápido", "Quick profile"))
-                .setItems(labels, new android.content.DialogInterface.OnClickListener() {
-                    @Override public void onClick(android.content.DialogInterface d, int which) {
-                        setOption("RESOLUTION", which == 2 ? "1080p" : "720p");
-                        setOption("NX_FPS_CAP", which == 1 ? "60" : "30");
-                        setOption("NX_FSR", which == 0 ? "0" : "1");
-                        updateButtons(null);
-                        save();
-                        tell(t("Perfil aplicado", "Profile applied"), labels[which]);
-                    }
-                }).setNegativeButton(t("Cancelar", "Cancel"), null).show();
-    }
-
-    void setOption(String key, String value) {
-        for (Option o : options) if (key.equals(o.key))
-            for (int i = 0; i < o.values.length; i++) if (value.equals(o.values[i])) o.pick = i;
     }
 
     // The touch overlay offers visual styles only; physical PS2 mapping is configured separately.
