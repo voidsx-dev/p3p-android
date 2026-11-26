@@ -49,6 +49,22 @@ public final class ModManagerActivity extends Activity {
     private LinearLayout list;
     private TextView summary;
 
+    // SHA-256 cache survives enable/disable renames during this app process.
+    // File length + modification time invalidate entries after normal file edits.
+    private static final Map<String, HashCacheEntry> HASH_CACHE = new HashMap<>();
+    private static final int MAX_HASH_CACHE_ENTRIES = 100000;
+
+    private static final class HashCacheEntry {
+        final long length;
+        final long modified;
+        final String hash;
+        HashCacheEntry(long length, long modified, String hash) {
+            this.length = length;
+            this.modified = modified;
+            this.hash = hash;
+        }
+    }
+
     private File modsDir() { return new File(Launcher.dataDir(), "mods"); }
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
@@ -82,7 +98,6 @@ public final class ModManagerActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         build();
-        refresh();
     }
 
     @Override protected void onResume() {
@@ -456,7 +471,7 @@ public final class ModManagerActivity extends Activity {
         // Identical copies from multiple mods are harmless and should not be flagged.
         Map<String, Map<String, Set<String>>> owners = new HashMap<>();
         for (File mod : mods) if (!mod.getName().startsWith("_"))
-            collectFiles(new File(mod, "romfs"), "", mod.getName(), owners);
+            collectFiles(new File(mod, "romfs"), "", mod, mod.getName(), owners);
         Set<String> conflicts = new HashSet<>();
         for (Map<String, Set<String>> versions : owners.values()) {
             if (versions.size() > 1) {
@@ -478,18 +493,18 @@ public final class ModManagerActivity extends Activity {
         for (File mod : mods) addModCard(mod, conflicts.contains(mod.getName()));
     }
 
-    private void collectFiles(File dir, String rel, String mod,
+    private void collectFiles(File dir, String rel, File modFolder, String mod,
             Map<String, Map<String, Set<String>>> owners) {
         File[] files = dir.listFiles();
         if (files == null) return;
         for (File f : files) {
             String p = rel.isEmpty() ? f.getName() : rel + "/" + f.getName();
             if (f.isDirectory()) {
-                collectFiles(f, p, mod, owners);
+                collectFiles(f, p, modFolder, mod, owners);
             } else {
                 String hash;
                 try {
-                    hash = sha256(f);
+                    hash = cachedSha256(f, modFolder, p);
                 } catch (Exception ignored) {
                     // If a file cannot be read, conservatively keep a warning for it.
                     hash = "unreadable:" + mod;
@@ -507,6 +522,41 @@ public final class ModManagerActivity extends Activity {
                 modsWithVersion.add(mod);
             }
         }
+    }
+
+    private String cachedSha256(File file, File modFolder, String relativePath) throws Exception {
+        String folderName = modFolder.getName();
+        // Toggling a mod only adds/removes the leading underscore. Keep the same cache key.
+        if (folderName.startsWith("_")) folderName = folderName.substring(1);
+        String key = modFolder.getParentFile().getCanonicalPath() + File.separator
+                + folderName + "/" + relativePath;
+        long length = file.length();
+        long modified = file.lastModified();
+        synchronized (HASH_CACHE) {
+            HashCacheEntry cached = HASH_CACHE.get(key);
+            if (cached != null && cached.length == length && cached.modified == modified)
+                return cached.hash;
+        }
+        String hash = sha256(file);
+        synchronized (HASH_CACHE) {
+            if (HASH_CACHE.size() >= MAX_HASH_CACHE_ENTRIES) HASH_CACHE.clear();
+            HASH_CACHE.put(key, new HashCacheEntry(length, modified, hash));
+        }
+        return hash;
+    }
+
+    private void invalidateHashCache(File modFolder) {
+        if (modFolder == null) return;
+        String folderName = modFolder.getName();
+        if (folderName.startsWith("_")) folderName = folderName.substring(1);
+        try {
+            String prefix = modFolder.getParentFile().getCanonicalPath() + File.separator
+                    + folderName + "/";
+            synchronized (HASH_CACHE) {
+                java.util.Iterator<String> it = HASH_CACHE.keySet().iterator();
+                while (it.hasNext()) if (it.next().startsWith(prefix)) it.remove();
+            }
+        } catch (Exception ignored) {}
     }
 
     private String sha256(File file) throws Exception {
@@ -587,8 +637,10 @@ public final class ModManagerActivity extends Activity {
                     .setNegativeButton("Cancelar", null)
                     .setPositiveButton("Remover", new android.content.DialogInterface.OnClickListener() {
                         @Override public void onClick(android.content.DialogInterface dialog, int which) {
-                            if (deleteTree(folder)) refresh();
-                            else toast("Não foi possível remover o mod.");
+                            if (deleteTree(folder)) {
+                                invalidateHashCache(folder);
+                                refresh();
+                            } else toast("Não foi possível remover o mod.");
                         }
                     }).show();
             }
