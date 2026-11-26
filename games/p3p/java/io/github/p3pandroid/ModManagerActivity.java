@@ -452,12 +452,18 @@ public final class ModManagerActivity extends Activity {
                 return a.getName().compareToIgnoreCase(b.getName());
             }
         });
-        Map<String, List<String>> owners = new HashMap<>();
+        // A repeated RomFS path is a conflict only when the file contents differ.
+        // Identical copies from multiple mods are harmless and should not be flagged.
+        Map<String, Map<String, Set<String>>> owners = new HashMap<>();
         for (File mod : mods) if (!mod.getName().startsWith("_"))
             collectFiles(new File(mod, "romfs"), "", mod.getName(), owners);
         Set<String> conflicts = new HashSet<>();
-        for (Map.Entry<String, List<String>> e : owners.entrySet())
-            if (e.getValue().size() > 1) conflicts.addAll(e.getValue());
+        for (Map<String, Set<String>> versions : owners.values()) {
+            if (versions.size() > 1) {
+                for (Set<String> modsWithVersion : versions.values())
+                    conflicts.addAll(modsWithVersion);
+            }
+        }
 
         int enabled = 0;
         for (File mod : mods) if (!mod.getName().startsWith("_")) enabled++;
@@ -472,21 +478,56 @@ public final class ModManagerActivity extends Activity {
         for (File mod : mods) addModCard(mod, conflicts.contains(mod.getName()));
     }
 
-    private void collectFiles(File dir, String rel, String mod, Map<String, List<String>> owners) {
+    private void collectFiles(File dir, String rel, String mod,
+            Map<String, Map<String, Set<String>>> owners) {
         File[] files = dir.listFiles();
         if (files == null) return;
         for (File f : files) {
             String p = rel.isEmpty() ? f.getName() : rel + "/" + f.getName();
-            if (f.isDirectory()) collectFiles(f, p, mod, owners);
-            else {
-                List<String> list = owners.get(p);
-                if (list == null) {
-                    list = new ArrayList<>();
-                    owners.put(p, list);
+            if (f.isDirectory()) {
+                collectFiles(f, p, mod, owners);
+            } else {
+                String hash;
+                try {
+                    hash = sha256(f);
+                } catch (Exception ignored) {
+                    // If a file cannot be read, conservatively keep a warning for it.
+                    hash = "unreadable:" + mod;
                 }
-                list.add(mod);
+                Map<String, Set<String>> versions = owners.get(p);
+                if (versions == null) {
+                    versions = new HashMap<>();
+                    owners.put(p, versions);
+                }
+                Set<String> modsWithVersion = versions.get(hash);
+                if (modsWithVersion == null) {
+                    modsWithVersion = new HashSet<>();
+                    versions.put(hash, modsWithVersion);
+                }
+                modsWithVersion.add(mod);
             }
         }
+    }
+
+    private String sha256(File file) throws Exception {
+        java.security.MessageDigest digest =
+                java.security.MessageDigest.getInstance("SHA-256");
+        try (InputStream in = new FileInputStream(file)) {
+            byte[] buffer = new byte[65536];
+            int n;
+            while ((n = in.read(buffer)) != -1) {
+                if (n > 0) digest.update(buffer, 0, n);
+            }
+        }
+        byte[] bytes = digest.digest();
+        char[] hex = new char[bytes.length * 2];
+        final char[] digits = "0123456789abcdef".toCharArray();
+        for (int i = 0; i < bytes.length; i++) {
+            int value = bytes[i] & 0xff;
+            hex[i * 2] = digits[value >>> 4];
+            hex[i * 2 + 1] = digits[value & 0x0f];
+        }
+        return new String(hex);
     }
 
     private void addModCard(File folder, boolean conflict) {
