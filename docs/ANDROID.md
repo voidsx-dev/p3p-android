@@ -80,7 +80,7 @@ A Bluetooth controller is the better way to play for now.
 
 ## Controllers
 
-Standard controllers (Xbox, PlayStation, Switch pads, most Bluetooth pads) work as they are. The launcher's **Button layout style** (Nintendo Switch, Xbox, PlayStation 2) says which face button confirms. A PS2 pad on a USB/OTG adapter arrives as a generic pad (BUTTON_1..12) and works with every profile, in the common "PC TWIN SHOCK" order.
+Standard controllers (Xbox, PlayStation, Switch pads, most Bluetooth pads) work as they are. The launcher has two separate options: **On-screen button style** (Nintendo Switch or Xbox: only the touch buttons drawn on the screen) and **Physical controller layout** (Nintendo Switch, Xbox or PlayStation 2 / USB PS2: which face button confirms on a connected controller). A PS2 pad on a USB/OTG adapter arrives as a generic pad (BUTTON_1..12) and works with every layout, in the common "PC TWIN SHOCK" order.
 
 When a pad does something else, **Controller → Controller mapping** lets you map it yourself. Tap Set (or Guided setup), press the button on the controller; sticks are found the same way. It is saved as `NX_PAD_MAP` in config.txt, a list separated by `;`:
 
