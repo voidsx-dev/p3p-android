@@ -1,12 +1,22 @@
 # Changelog
 
-## 0.6.0
-- Separate the on-screen button appearance (Switch/Xbox) from the physical controller layout (Switch/Xbox/PS2).
-- Keep PS2 USB adapter mapping available without exposing a PS2 touch-overlay style.
-- Add quick performance profiles: Balanced (720p/30), Performance (720p/60), and Quality (1080p/30).
-- Bump Android version to 0.6.0 (versionCode 13).
+[0.6.0] - Unreleased
 
-All notable changes to P3P Android are documented here.
+Changed
+
+- The on-screen button appearance (On-screen button style: Nintendo Switch or Xbox) is now separate from the layout of a connected controller (Physical controller layout: Nintendo Switch, Xbox or PlayStation 2 / USB PS2). A PS2 setting saved by an older version is moved to the new option. The touch buttons no longer have a PS2 style.
+- Launcher: the controls are reorganized into three cards (Controls, On-screen buttons, Physical controller), and there is a new app icon.
+- Mod Manager: a repeated RomFS path is reported as a conflict only when the files differ (compared by SHA-256, with a hash cache); identical copies in several mods are no longer flagged.
+- Mods that add mod.cpk, mod_extra.cpk or mod_bgm.cpk, such as P3P Music Replacer, now work: the Mod Manager places them in data/ and the game binds them, which is what the Switch "modCPK" plugin does. Confirmed in game with the Music Replacer ("Heaven" plays in Tartarus block 6).
+
+Fixed
+
+- Missing translations in the controls options and hints, and Portuguese text showing in Spanish (including the save management panel).
+
+Notes
+
+- The PS2 USB adapter support has not been tested on a real controller yet.
+- The Mod Manager and Diagnostics screens are still in Portuguese only.
 
 [0.5.0] - Released
 
