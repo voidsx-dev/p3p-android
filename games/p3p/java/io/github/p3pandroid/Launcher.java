@@ -322,9 +322,9 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         options.add(new Option("NX_TOUCH_OPACITY", "Opacidad de los botones", "Button opacity",
                 new String[] {"50", "85", "100"}, new String[] {"Baja", "Normal", "Alta"},
                 new String[] {"Low", "Normal", "High"}, 1));
-        options.add(new Option("NX_TOUCH_STYLE", "Visual dos botões na tela", "On-screen button style", new String[] {"switch", "xbox"},
+        options.add(new Option("NX_TOUCH_STYLE", "Aspecto de los botones en pantalla", "On-screen button style", new String[] {"switch", "xbox"},
                 new String[] {"Nintendo Switch", "Xbox"}, new String[] {"Nintendo Switch", "Xbox"}, 0));
-        options.add(new Option("NX_PAD_STYLE", "Layout do controle físico", "Physical controller layout", new String[] {"switch", "xbox", "ps2"},
+        options.add(new Option("NX_PAD_STYLE", "Disposición del mando físico", "Physical controller layout", new String[] {"switch", "xbox", "ps2"},
                 new String[] {"Nintendo Switch", "Xbox", "PlayStation 2 / USB PS2"},
                 new String[] {"Nintendo Switch", "Xbox", "PlayStation 2 / USB PS2"}, 0));
         build();
@@ -501,7 +501,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         LinearLayout saves = section(root, t("Partidas guardadas", "Saves"), null);
 
         TextView savesIntro = new TextView(this);
-        savesIntro.setText(t("PROTEJA SEU PROGRESSO", "PROTECT YOUR PROGRESS"));
+        savesIntro.setText(t("PROTEGE TU PROGRESO", "PROTECT YOUR PROGRESS"));
         savesIntro.setTextColor(Ui.TEXT);
         savesIntro.setTextSize(14);
         savesIntro.setTypeface(Typeface.DEFAULT_BOLD);
@@ -510,7 +510,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         saves.addView(savesIntro);
 
         TextView savesHint = new TextView(this);
-        savesHint.setText(t("Importe um backup ZIP ou uma pasta de saves. Exporte suas partidas para guardar ou transferir para outro aparelho.",
+        savesHint.setText(t("Importa una copia ZIP o una carpeta de partidas. Exporta tus partidas para guardarlas o pasarlas a otro dispositivo.",
                 "Import a backup ZIP or a save folder. Export your saves to keep a backup or move them to another device."));
         savesHint.setTextColor(Ui.MUTED);
         savesHint.setTextSize(12.5f);
@@ -553,7 +553,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         saves.addView(saveButtons);
 
         TextView savesFootnote = new TextView(this);
-        savesFootnote.setText(t("Um backup atual é criado antes da importação.",
+        savesFootnote.setText(t("Antes de importar se crea una copia de tus partidas actuales.",
                 "A backup of your current saves is created before importing."));
         savesFootnote.setTextColor(Ui.MUTED);
         savesFootnote.setTextSize(11.5f);
@@ -614,17 +614,17 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
 
     // The touch overlay offers visual styles only; physical PS2 mapping is configured separately.
     String styleHintText(int choice) {
-        if (choice == 1) return t("Visual Xbox: os botões virtuais seguem as posições e letras do Xbox.",
+        if (choice == 1) return t("Aspecto Xbox: los botones virtuales usan las posiciones y letras de Xbox.",
                 "Xbox look: virtual buttons use Xbox positions and labels.");
-        return t("Visual Switch: os botões virtuais seguem as posições e letras do Nintendo Switch.",
+        return t("Aspecto Switch: los botones virtuales usan las posiciones y letras de Nintendo Switch.",
                 "Switch look: virtual buttons use Nintendo Switch positions and labels.");
     }
 
     String padStyleHintText(int choice) {
-        if (choice == 2) return t("Compatibilidade com adaptadores USB de PS2 (ordem comum PC TWIN SHOCK).",
+        if (choice == 2) return t("Compatibilidad con adaptadores USB de PS2 (orden habitual PC TWIN SHOCK).",
                 "Compatibility with PS2 USB adapters (common PC TWIN SHOCK button order).");
-        if (choice == 1) return t("Interpreta os botões físicos no padrão Xbox.", "Interprets physical buttons using the Xbox layout.");
-        return t("Interpreta os botões físicos no padrão Nintendo Switch.", "Interprets physical buttons using the Nintendo Switch layout.");
+        if (choice == 1) return t("Interpreta los botones físicos con la disposición de Xbox.", "Interprets physical buttons using the Xbox layout.");
+        return t("Interpreta los botones físicos con la disposición de Nintendo Switch.", "Interprets physical buttons using the Nintendo Switch layout.");
     }
 
     // One option: its name, and its choices side by side (the chosen one filled).
@@ -833,7 +833,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
                 Ui.dp(this, 20), Ui.dp(this, 14));
         panel.setBackground(Ui.shape(this, Ui.CARD, 20, Ui.STROKE));
 
-        TextView eyebrow = Ui.title(this, t("GERENCIAMENTO DE PARTIDAS", "SAVE MANAGEMENT"));
+        TextView eyebrow = Ui.title(this, t("GESTIÓN DE PARTIDAS", "SAVE MANAGEMENT"));
         panel.addView(eyebrow);
         TextView heading = new TextView(this);
         heading.setText(t("Importar partidas", "Import saves"));
@@ -843,15 +843,15 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         heading.setPadding(0, 0, 0, Ui.dp(this, 7));
         panel.addView(heading);
         TextView description = Ui.hint(this,
-                t("Escolha de onde importar seu backup. Suas partidas atuais serão copiadas para um backup antes da importação.",
+                t("Elige de dónde importar tu copia. Tus partidas actuales se copiarán antes de importar.",
                   "Choose where to import your backup from. Your current saves will be backed up before importing."));
         panel.addView(description);
 
         final AlertDialog dialog = new AlertDialog.Builder(this).setView(panel).create();
 
         LinearLayout zip = saveImportOption("ZIP",
-                t("Arquivo ZIP", "ZIP archive"),
-                t("Backup compactado • recomendado para transferências",
+                t("Archivo ZIP", "ZIP archive"),
+                t("Copia comprimida • recomendada para transferencias",
                   "Compressed backup • recommended for transfers"));
         LinearLayout.LayoutParams optionParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -870,8 +870,8 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         });
 
         LinearLayout folder = saveImportOption("DIR",
-                t("Selecionar pasta", "Choose folder"),
-                t("Procura os arquivos de save dentro da pasta escolhida",
+                t("Elegir carpeta", "Choose folder"),
+                t("Busca archivos de partida dentro de la carpeta elegida",
                   "Finds save files inside the selected folder"));
         LinearLayout.LayoutParams folderParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -934,17 +934,17 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             SaveFiles.Result r = request == PICK_ZIP ? SaveFiles.importZip(getContentResolver(), data.getData())
                     : request == PICK_FOLDER ? SaveFiles.importTree(getContentResolver(), data.getData()) : null;
             if (r == null) {
-                tell(t("Nenhum save encontrado", "No saves found"),
-                        t("Não encontrei arquivos de save válidos nesse ZIP ou pasta. "
-                                        + "Escolha um backup exportado pelo P3P ou a pasta correta dos saves.",
+                tell(t("No se encontraron partidas", "No saves found"),
+                        t("No encontré archivos de partida válidos en ese ZIP o carpeta. "
+                                        + "Elige una copia exportada por P3P o la carpeta correcta de las partidas.",
                                 "No valid save files were found in that ZIP or folder. "
                                         + "Choose a P3P backup or the correct save folder."));
                 return;
             }
-            String kept = r.backup == null ? "" : Lang.f("\n\nBackup anterior: user/%s.",
+            String kept = r.backup == null ? "" : Lang.f("\n\nCopia anterior: user/%s.",
                     "\n\nPrevious backup: user/%s.", r.backup);
             tell(t("Partidas restauradas", "Saves restored"),
-                    Lang.f("%d arquivos restaurados com sucesso.", "%d files restored successfully.", r.files) + kept);
+                    Lang.f("%d archivos restaurados correctamente.", "%d files restored successfully.", r.files) + kept);
         } catch (Exception e) {
             tell(t("No se pudo importar", "Import failed"), String.valueOf(e.getMessage()));
         }
@@ -1037,7 +1037,7 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
         if ("NX_FPS_CAP".equals(key)) return new String[] {"Rendimiento", "Performance"};
         if ("NX_AUDIO_MODE".equals(key)) return new String[] {"Audio", "Audio"};
         if ("NX_TOUCH_SHOW".equals(key)) return new String[] {"Controles", "Controls"};
-        if ("NX_TOUCH_STYLE".equals(key)) return new String[] {"Controles", "Controls"};
+        if ("NX_TOUCH_STYLE".equals(key)) return new String[] {"Botones en pantalla", "On-screen buttons"};
         if ("NX_PAD_STYLE".equals(key)) return new String[] {"Mando físico", "Physical controller"};
         return null;
     }
@@ -1051,10 +1051,10 @@ public class Launcher extends Activity implements InputManager.InputDeviceListen
             return new String[] {"En móviles modestos, 30 fps suele ir más fluido que 60. \"Priorizar los rápidos\" ayuda cuando la GPU no está al límite.",
                     "On modest phones 30 fps is usually smoother than 60. \"Prefer the fast ones\" helps when the GPU is not at its limit."};
         if ("NX_TOUCH_STYLE".equals(key))
-            return new String[] {"Escolha apenas a aparência dos botões virtuais. O layout do controle USB/Bluetooth é configurado separadamente.",
+            return new String[] {"Elige solo el aspecto de los botones virtuales. La disposición del mando USB/Bluetooth se configura aparte.",
                     "Choose only the appearance of virtual buttons. USB/Bluetooth controller layout is configured separately."};
         if ("NX_PAD_STYLE".equals(key))
-            return new String[] {"Para adaptadores USB de PS2, selecione PlayStation 2 / USB PS2. O visual dos botões na tela não muda.",
+            return new String[] {"Para adaptadores USB de PS2, elige PlayStation 2 / USB PS2. El aspecto de los botones en pantalla no cambia.",
                     "For PS2 USB adapters, select PlayStation 2 / USB PS2. The on-screen button appearance will not change."};
         if ("NX_AUDIO_MODE".equals(key))
             return new String[] {"Si el sonido falla con auriculares, prueba \"Normal\".",
